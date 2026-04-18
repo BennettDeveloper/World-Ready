@@ -1,9 +1,10 @@
 import React from 'react'
+import DidDemo from './DidDemo'
 
 const App = () => {
   return (
     <div>
-      <h1>World-Ready</h1>
+      <DidDemo />
     </div>
   )
 }
