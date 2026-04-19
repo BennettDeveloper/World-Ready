@@ -1,51 +1,102 @@
-import { useState } from "react";
-import { REGIONS } from "../data/regions";
+import { useState } from 'react'
+import GlobeCanvas from '../components/GlobeCanvas'
+import { REGIONS_ARRAY } from '../data/regions'
+import styles from '../styles/LandingPage.module.css'
 
-export default function LandingPage({ onBegin }) {
-  const [selectedRegion, setSelectedRegion] = useState(null);
-  const [role, setRole] = useState("");
+export default function LandingPage({ onBegin, loading, error }) {
+  const [selectedRegion, setSelectedRegion] = useState(null)
+  const [role, setRole] = useState('')
 
-  const canBegin = selectedRegion && role.trim().length > 0;
+  const canBegin = selectedRegion !== null && role.trim().length > 0
+
+  function handleBegin() {
+    if (!canBegin || loading) return
+    onBegin(selectedRegion, role.trim())
+  }
 
   return (
-    <div className="landing">
-      <div className="landing-header">
-        <h1 className="title">🌐 World Ready</h1>
-        <p className="subtitle">Master interviews across cultures. Choose your region and step into the room.</p>
-      </div>
+    <div className={styles.page}>
 
-      <div className="region-grid">
-        {Object.entries(REGIONS).map(([key, region]) => (
+      {/* LEFT — Hero text + region cards */}
+      <div className={styles.left}>
+
+        {/* Wordmark */}
+        <div className={styles.wordmark}>
+          <span className={styles.wordmarkMain}>WORLD</span>
+          <span className={styles.wordmarkAccent}>READY</span>
+        </div>
+
+        {/* Hero text */}
+        <div className={styles.hero}>
+          <h1 className={styles.heroTitle}>
+            Train for<br />
+            <span className={styles.heroAccent}>the interviewer.</span>
+          </h1>
+          <p className={styles.heroSub}>
+            You practiced the answer.<br />
+            Did you practice being in the room?
+          </p>
+        </div>
+
+        {/* Region cards */}
+        <div className={styles.regionGrid}>
+          {REGIONS_ARRAY.map(region => {
+            const isSelected = selectedRegion?.id === region.id
+            return (
+              <button
+                key={region.id}
+                className={`${styles.regionCard} ${isSelected ? styles.regionCardSelected : ''}`}
+                onClick={() => setSelectedRegion(isSelected ? null : region)}
+              >
+                <span className={styles.regionFlag}>{region.flag}</span>
+                <div className={styles.regionInfo}>
+                  <span className={styles.regionLabel}>{region.label}</span>
+                  <span className={styles.regionName}>{region.interviewer}</span>
+                  <span className={styles.regionTag}>{region.styleTag}</span>
+                </div>
+                {isSelected && (
+                  <div className={styles.regionConnector} />
+                )}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Role input */}
+        <div className={styles.inputGroup}>
+          <input
+            type="text"
+            className={styles.roleInput}
+            placeholder="Enter your target role  (e.g. Software Engineer)"
+            value={role}
+            onChange={e => setRole(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleBegin()}
+          />
+          {error && <p className={styles.error}>{error}</p>}
           <button
-            key={key}
-            className={`region-card ${selectedRegion === key ? "selected" : ""}`}
-            onClick={() => setSelectedRegion(key)}
+            className={`${styles.beginBtn} ${canBegin ? styles.beginBtnActive : styles.beginBtnDisabled}`}
+            onClick={handleBegin}
+            disabled={!canBegin || loading}
           >
-            <span className="region-flag">{region.flag}</span>
-            <span className="region-name">{region.name}</span>
-            <span className="region-style-tag">{region.styleTag}</span>
+            {loading ? 'Connecting...' : 'Begin Interview →'}
           </button>
-        ))}
+        </div>
+
+        {/* Tagline */}
+        <p className={styles.tagline}>
+          Every room has different rules. Learn them all.
+        </p>
       </div>
 
-      <div className="role-input-section">
-        <label className="input-label">Your Job Role</label>
-        <input
-          className="role-input"
-          type="text"
-          placeholder="e.g. Software Engineer, Product Manager…"
-          value={role}
-          onChange={(e) => setRole(e.target.value)}
-        />
+      {/* RIGHT — Globe */}
+      <div className={styles.right}>
+        <div className={styles.globeWrap}>
+          <GlobeCanvas
+            selectedRegion={selectedRegion}
+            onRegionClick={setSelectedRegion}
+          />
+        </div>
       </div>
-
-      <button
-        className={`begin-btn ${canBegin ? "active" : "disabled"}`}
-        disabled={!canBegin}
-        onClick={() => onBegin(selectedRegion, role.trim())}
-      >
-        Begin Interview →
-      </button>
     </div>
-  );
+  )
 }

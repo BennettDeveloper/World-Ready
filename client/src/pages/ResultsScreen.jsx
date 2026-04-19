@@ -1,82 +1,99 @@
-import { useEffect, useState } from "react";
-import { REGIONS } from "../data/regions";
+import { useEffect, useState } from 'react'
+import StatBar from '../components/StatBar'
+import styles from '../styles/ResultsScreen.module.css'
 
-const STAT_LABELS = [
-  "Cultural Fluency",
-  "Communication Clarity",
-  "Confidence",
-  "Role Alignment",
-  "Overall Performance",
-];
+const CATEGORIES = [
+  { key: 'confidence',        label: 'Confidence' },
+  { key: 'fillerControl',     label: 'Filler Control' },
+  { key: 'answerStructure',   label: 'Answer Structure' },
+  { key: 'culturalAlignment', label: 'Cultural Alignment' },
+  { key: 'followUpHandling',  label: 'Follow-up Handling' },
+]
 
-const COACHING = [
-  "Practice active listening — pause before answering to show thoughtfulness.",
-  "Use the STAR method (Situation, Task, Action, Result) for behavioral questions.",
-  "Research your interviewer's regional expectations before the real thing.",
-  "Tailor your tone — match the formality level of the culture you're interviewing in.",
-  "Quantify your achievements wherever possible to demonstrate impact.",
-];
+function scoreColor(s) {
+  if (s >= 75) return 'var(--score-high)'
+  if (s >= 45) return 'var(--score-mid)'
+  return 'var(--score-low)'
+}
 
-export default function ResultsScreen({ region, role, scores, onRestart, onShare }) {
-  const [animated, setAnimated] = useState(false);
-  const regionData = REGIONS[region];
+export default function ResultsScreen({ region, role, persona, scores, onRestart }) {
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setTimeout(() => setMounted(true), 100) }, [])
 
-  useEffect(() => {
-    const t = setTimeout(() => setAnimated(true), 100);
-    return () => clearTimeout(t);
-  }, []);
+  const s = scores?.scores || {}
+  const f = scores?.feedback || {}
+
+  const avg = CATEGORIES.length
+    ? Math.round(CATEGORIES.reduce((a, c) => a + (s[c.key] || 0), 0) / CATEGORIES.length)
+    : 0
+
+  const avgColor = scoreColor(avg)
 
   return (
-    <div className="results-screen">
-      <div className="results-header">
-        <div className="evaluator-badge glass">
-          <span>{regionData.flag}</span>
-          <div>
-            <p className="badge-label">Evaluated by</p>
-            <p className="badge-name">{regionData.interviewer}</p>
-            <p className="badge-region">{regionData.name} · {regionData.styleTag}</p>
-          </div>
+    <div className={styles.page}>
+
+      {/* Header */}
+      <header className={styles.header}>
+        <div className={styles.logo}>
+          WORLD<span className={styles.logoAccent}>READY</span>
         </div>
-        <h2 className="results-title">Interview Complete</h2>
-        <p className="results-role">{role} Candidate</p>
-      </div>
+      </header>
 
-      <div className="stats-section glass">
-        <h3 className="stats-heading">Performance Breakdown</h3>
-        {STAT_LABELS.map((label, i) => (
-          <div key={i} className="stat-row">
-            <span className="stat-label">{label}</span>
-            <div className="stat-bar-track">
-              <div
-                className="stat-bar-fill"
-                style={{ width: animated ? `${scores[i]}%` : "0%" }}
-              />
-            </div>
-            <span className="stat-score">{scores[i]}</span>
+      <div className={styles.content}>
+
+        {/* Score hero */}
+        <div className={styles.scoreHero}>
+          <div className={styles.scoreLabel}>INTERVIEW COMPLETE</div>
+          <div
+            className={styles.scoreNumber}
+            style={{ color: avgColor, textShadow: `0 0 60px ${avgColor}44` }}
+          >
+            {mounted ? avg : 0}
           </div>
-        ))}
-      </div>
+          <div className={styles.scoreSub}>
+            out of 100 · {persona?.name || region?.interviewer} · {region?.label}
+          </div>
+          <p className={styles.scoreSummary}>
+            {region?.interviewer} evaluates candidates on {region?.styleTag?.toLowerCase()} standards.
+            Here is how you performed.
+          </p>
+        </div>
 
-      <div className="coaching-section glass">
-        <h3 className="coaching-heading">Coaching Feedback</h3>
-        <ul className="coaching-list">
-          {COACHING.map((tip, i) => (
-            <li key={i} className="coaching-item">
-              <span className="coaching-dot" />
-              {tip}
-            </li>
+        {/* Stat bars */}
+        <div className={styles.bars}>
+          {CATEGORIES.map((cat, i) => (
+            <StatBar
+              key={cat.key}
+              label={cat.label}
+              score={s[cat.key] ?? 0}
+              feedback={f[cat.key] ?? ''}
+              index={i}
+            />
           ))}
-        </ul>
-      </div>
+        </div>
 
-      <div className="results-actions">
-        <button className="begin-btn active" onClick={onRestart}>
-          Try Another Region
-        </button>
-        <button className="share-btn glass" onClick={onShare}>
-          Share Results
-        </button>
+        {/* Actions */}
+        <div className={styles.actions}>
+          <button
+            className={styles.btnPrimary}
+            onClick={onRestart}
+          >
+            Try Another Region
+          </button>
+          <button
+            className={styles.btnSecondary}
+            onClick={onRestart}
+          >
+            Practice Same Role Again
+          </button>
+        </div>
+
+        {/* Closing line */}
+        <p className={styles.closingLine}>
+          In a world where everyone is interview ready, the candidates who stand out
+          will be the ones who are World-Ready.
+        </p>
       </div>
     </div>
-  );
+  )
 }
