@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react';
-import { Loader } from '@googlemaps/js-api-loader';
+import { setOptions, importLibrary } from '@googlemaps/js-api-loader';
 import { REGIONS } from '../data/regions';
 
-const loader = new Loader({
+setOptions({
   apiKey: 'AIzaSyDNzve-W7zTBlEkHiLruCpzhQTiu3ScdHs',
   version: 'weekly',
 });
@@ -94,9 +94,10 @@ export default function WorldMap({ selectedRegion, onSelectRegion }) {
   useEffect(() => {
     let cancelled = false;
 
-    loader.load().then((google) => {
+    importLibrary('maps').then(() => {
       if (cancelled || !containerRef.current || mapRef.current) return;
 
+      const google = window.google;
       googleRef.current = google;
 
       const map = new google.maps.Map(containerRef.current, {
