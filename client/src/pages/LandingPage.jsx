@@ -14,7 +14,7 @@ export default function LandingPage({ user }) {
   const [company, setCompany] = useState('');
   const [difficulty, setDifficulty] = useState('medium');
   const [showSetup, setShowSetup] = useState(() => !!localStorage.getItem('wr_selected_region'));
-  const [timeContext, setTimeContext] = useState('');
+  const [timeData, setTimeData] = useState({});
   const navigate = useNavigate();
 
   const canBegin = selectedRegion && isValidJobTitle(role);
@@ -25,9 +25,9 @@ export default function LandingPage({ user }) {
   }, []);
 
   useEffect(() => {
-    if (!selectedRegion || !REGIONS[selectedRegion]) { setTimeContext(''); return; }
+    if (!selectedRegion || !REGIONS[selectedRegion]) { setTimeData({}); return; }
     const r = REGIONS[selectedRegion];
-    getCityTimeContext(r.lat, r.lon, r.name).then(d => setTimeContext(d.contextString || ''));
+    getCityTimeContext(r.lat, r.lon, r.name).then(d => setTimeData(d || {}));
   }, [selectedRegion]);
 
   function handleSelectRegion(key) {
@@ -39,7 +39,7 @@ export default function LandingPage({ user }) {
   function handleBegin() {
     if (!canBegin) return;
     const resumeText = user?.userId ? getResume(user.userId) : '';
-    setPendingSession({ region: selectedRegion, role: role.trim(), company: company.trim(), difficulty, resumeText, timeContext });
+    setPendingSession({ region: selectedRegion, role: role.trim(), company: company.trim(), difficulty, resumeText, timeContext: timeData.contextString || '', timeOfDay: timeData.timeOfDay || '', timeStr: timeData.timeStr || '', isWeekend: timeData.isWeekend || false });
     navigate('/interview');
   }
 
@@ -109,7 +109,7 @@ export default function LandingPage({ user }) {
           )}
 
           {/* Mood card — shown when region is selected and time loaded */}
-          {region && timeContext && (
+          {region && timeData.contextString && (
             <div style={{
               background: 'rgba(5,21,37,0.85)',
               border: '1px solid rgba(0,210,255,0.2)',
@@ -130,7 +130,7 @@ export default function LandingPage({ user }) {
                 fontSize: '13px', color: 'rgba(255,255,255,0.7)',
                 lineHeight: 1.7, margin: 0, fontStyle: 'italic',
               }}>
-                {timeContext}
+                {timeData.contextString}
               </p>
             </div>
           )}

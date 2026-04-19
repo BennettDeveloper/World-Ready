@@ -38,7 +38,7 @@ function AboutNav() {
 }
 
 const TEAM = [
-  { name: 'Chris Bennett', role: 'AI Model Lead & Product Owner', flag: '🇺🇸', initial: 'C' },
+  { name: 'Chris Bennett', role: 'AI Model Lead & Back End Engineer', flag: '🇺🇸', initial: 'C' },
   { name: 'Bobby Money', role: 'Project Lead & Full-Stack Developer', flag: '🇺🇸', initial: 'B' },
   { name: 'Derwin Bell', role: 'Back End Lead & Systems', flag: '🇺🇸', initial: 'D' },
   { name: 'James Kollilon Barclay III', role: 'Front End Developer & Design Lead', flag: '🇺🇸', initial: 'J' },

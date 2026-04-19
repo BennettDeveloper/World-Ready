@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import StatBar from '../components/StatBar';
 import CoachingCard from '../components/CoachingCard';
@@ -15,6 +15,8 @@ export default function ResultsScreen({ user, sessionData }) {
   const [submitted, setSubmitted] = useState(false);
   const [showTranscript, setShowTranscript] = useState(false);
   const [aiPowered, setAiPowered] = useState(false);
+  const [displayOverall, setDisplayOverall] = useState(0);
+  const rafRef = useRef(null);
 
   const resolvedData = sessionData || (() => {
     try { return JSON.parse(localStorage.getItem('wr_last_session') || 'null'); } catch { return null; }
@@ -65,6 +67,21 @@ export default function ResultsScreen({ user, sessionData }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (!animated) return;
+    const target = overall;
+    const start = performance.now();
+    const duration = 1400;
+    function step(now) {
+      const t = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setDisplayOverall(Math.round(eased * target));
+      if (t < 1) rafRef.current = requestAnimationFrame(step);
+    }
+    rafRef.current = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [animated, overall]);
+
   if (!resolvedData) return null;
 
   function handleSubmitLeaderboard() {
@@ -100,8 +117,8 @@ export default function ResultsScreen({ user, sessionData }) {
           <h1 className="results-title">Interview Complete</h1>
           <p className="results-sub">{role}{company ? ` at ${company}` : ''}</p>
           <div className="overall-score">
-            <span className="overall-num" style={{ color: overall >= 85 ? '#22c55e' : overall >= 70 ? '#00d4ff' : '#f59e0b' }}>
-              {overall}
+            <span className="overall-num score-reveal" style={{ color: overall >= 85 ? '#22c55e' : overall >= 70 ? '#00d4ff' : '#f59e0b' }}>
+              {displayOverall}
             </span>
             <span className="overall-label">{scoreLabel}</span>
           </div>
@@ -140,14 +157,15 @@ export default function ResultsScreen({ user, sessionData }) {
         )}
       </div>
 
-      <div className="results-actions">
-        <button className="btn-primary" onClick={() => navigate('/home')}>Try Another Region</button>
+      <div className="results-actions glass" style={{ padding: '16px', display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '24px' }}>
+        <button className="btn-primary" style={{ flex: '1 1 180px' }} onClick={() => navigate('/home')}>Try Another Region</button>
         <button className={`btn-secondary glass${submitted ? ' submitted' : ''}`}
+          style={{ flex: '1 1 180px' }}
           onClick={handleSubmitLeaderboard} disabled={submitted}>
           {submitted ? '✅ On the Leaderboard!' : '🏆 Submit to Leaderboard'}
         </button>
-        <button className="btn-secondary glass" onClick={handleShare}>📤 Share Results</button>
-        <button className="btn-ghost" onClick={() => navigate('/profile')}>View Profile</button>
+        <button className="btn-secondary glass" style={{ flex: '1 1 140px' }} onClick={handleShare}>📤 Share Results</button>
+        <button className="btn-ghost" style={{ flex: '1 1 100px' }} onClick={() => navigate('/profile')}>View Profile</button>
       </div>
     </div>
   );

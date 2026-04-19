@@ -33,7 +33,7 @@ export default function App() {
     <div className="app">
       {!hideNav && user && <Navbar user={user} onLogout={handleLogout} />}
 
-      <main className={`main-content${hideNav ? ' no-nav' : ''}`}>
+      <main key={location.pathname} className={`main-content page-enter${hideNav ? ' no-nav' : ''}`}>
         <Routes>
           <Route path="/" element={<PublicLandingPage user={user} />} />
           <Route path="/login" element={
