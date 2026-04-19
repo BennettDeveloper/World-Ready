@@ -1,4 +1,4 @@
-package com.worldready.backend.dto;
+package com.worldready.backend.dto.request;
 
 
 import com.worldready.backend.model.InterviewMessage;
