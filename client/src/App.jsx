@@ -1,88 +1,78 @@
-import { useState } from "react";
-import LandingPage from "./pages/LandingPage";
-import InterviewScreen, { QUESTIONS } from "./pages/InterviewScreen";
-import ResultsScreen from "./pages/ResultsScreen";
-import "./App.css";
+import { useState } from 'react';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import Navbar from './components/Navbar';
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
+import LandingPage from './pages/LandingPage';
+import InterviewScreen from './pages/InterviewScreen';
+import ResultsScreen from './pages/ResultsScreen';
+import ProfilePage from './pages/ProfilePage';
+import LeaderboardPage from './pages/LeaderboardPage';
+import { getSession } from './utils/auth';
+import './App.css';
 
-const PHASES = { LANDING: "landing", INTERVIEW: "interview", RESULTS: "results" };
+function ProtectedRoute({ children, user }) {
+  return user ? children : <Navigate to="/" replace />;
+}
 
-function generateScores() {
-  return Array.from({ length: 5 }, () => Math.floor(Math.random() * 31) + 65);
+function PublicRoute({ children, user }) {
+  return !user ? children : <Navigate to="/home" replace />;
 }
 
 export default function App() {
-  const [phase, setPhase] = useState(PHASES.LANDING);
-  const [region, setRegion] = useState(null);
-  const [role, setRole] = useState("");
-  const [messages, setMessages] = useState([]);
-  const [scores, setScores] = useState([]);
+  const [user, setUser] = useState(() => getSession());
+  const [sessionData, setSessionData] = useState(null);
+  const location = useLocation();
 
-  function handleBegin(selectedRegion, selectedRole) {
-    setRegion(selectedRegion);
-    setRole(selectedRole);
-    setMessages([{ from: "interviewer", text: QUESTIONS[0] }]);
-    setPhase(PHASES.INTERVIEW);
-  }
+  const hideNav = ['/', '/register'].includes(location.pathname);
 
-  function handleSubmitAnswer(answer, nextQuestion) {
-    const updated = [...messages, { from: "user", text: answer }];
-    if (nextQuestion) {
-      updated.push({ from: "interviewer", text: nextQuestion });
-    } else {
-      updated.push({
-        from: "interviewer",
-        text: "Thank you for your time. That concludes our interview — we'll be in touch soon.",
-      });
-    }
-    setMessages(updated);
-  }
-
-  function handleFinish() {
-    setScores(generateScores());
-    setPhase(PHASES.RESULTS);
-  }
-
-  function handleRestart() {
-    setPhase(PHASES.LANDING);
-    setRegion(null);
-    setRole("");
-    setMessages([]);
-    setScores([]);
-  }
-
-  function handleShare() {
-    const text = `I just completed a ${region} interview simulation as a ${role} on World Ready! 🌐`;
-    if (navigator.share) {
-      navigator.share({ title: "World Ready Results", text });
-    } else {
-      navigator.clipboard.writeText(text);
-      alert("Results copied to clipboard!");
-    }
-  }
+  function handleLogin(u) { setUser(u); }
+  function handleLogout() { setUser(null); }
 
   return (
     <div className="app">
-      {phase === PHASES.LANDING && (
-        <LandingPage onBegin={handleBegin} />
-      )}
-      {phase === PHASES.INTERVIEW && (
-        <InterviewScreen
-          region={region}
-          role={role}
-          messages={messages}
-          onSubmitAnswer={handleSubmitAnswer}
-          onFinish={handleFinish}
-        />
-      )}
-      {phase === PHASES.RESULTS && (
-        <ResultsScreen
-          region={region}
-          role={role}
-          scores={scores}
-          onRestart={handleRestart}
-          onShare={handleShare}
-        />
-      )}
+      {!hideNav && user && <Navbar user={user} onLogout={handleLogout} />}
+
+      <main className={`main-content${hideNav ? ' no-nav' : ''}`}>
+        <Routes>
+          <Route path="/" element={
+            <PublicRoute user={user}>
+              <LoginPage onLogin={handleLogin} />
+            </PublicRoute>
+          } />
+          <Route path="/register" element={
+            <PublicRoute user={user}>
+              <RegisterPage onLogin={handleLogin} />
+            </PublicRoute>
+          } />
+          <Route path="/home" element={
+            <ProtectedRoute user={user}>
+              <LandingPage user={user} />
+            </ProtectedRoute>
+          } />
+          <Route path="/interview" element={
+            <ProtectedRoute user={user}>
+              <InterviewScreen onComplete={data => setSessionData(data)} />
+            </ProtectedRoute>
+          } />
+          <Route path="/results" element={
+            <ProtectedRoute user={user}>
+              <ResultsScreen user={user} sessionData={sessionData} />
+            </ProtectedRoute>
+          } />
+          <Route path="/profile" element={
+            <ProtectedRoute user={user}>
+              <ProfilePage user={user} />
+            </ProtectedRoute>
+          } />
+          <Route path="/leaderboard" element={
+            <ProtectedRoute user={user}>
+              <LeaderboardPage user={user} />
+            </ProtectedRoute>
+          } />
+          <Route path="*" element={<Navigate to={user ? '/home' : '/'} replace />} />
+        </Routes>
+      </main>
     </div>
   );
 }
