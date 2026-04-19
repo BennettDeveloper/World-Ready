@@ -5,7 +5,7 @@ import CoachingCard from '../components/CoachingCard';
 import { REGIONS } from '../data/regions';
 import { saveSession, submitToLeaderboard } from '../utils/storage';
 import { scoreAnswers } from '../utils/scoring';
-import { generateCoaching } from '../utils/coaching';
+import { generateCoaching, generateCoachingFromAI } from '../utils/coaching';
 
 const STAT_LABELS = ['Cultural Fluency', 'Communication Clarity', 'Confidence', 'Role Alignment', 'Overall'];
 
@@ -14,17 +14,49 @@ export default function ResultsScreen({ user, sessionData }) {
   const [animated, setAnimated] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [showTranscript, setShowTranscript] = useState(false);
+  const [aiPowered, setAiPowered] = useState(false);
 
   const { region, role, company, difficulty, messages, answers } = sessionData || {};
   const regionData = REGIONS[region];
-  const scores = sessionData ? scoreAnswers(answers, region, role) : [65, 65, 65, 65, 65];
-  const coaching = generateCoaching(scores);
+
+  const keywordScores = sessionData ? scoreAnswers(answers, region, role) : [65, 65, 65, 65, 65];
+  const [scores, setScores] = useState(keywordScores);
+  const [coaching, setCoaching] = useState(() => generateCoaching(keywordScores, region));
   const overall = scores[4];
 
   useEffect(() => {
     if (!sessionData) { navigate('/home'); return; }
     const t = setTimeout(() => setAnimated(true), 150);
-    if (user) saveSession(user.userId, { region, role, company, difficulty, messages, scores, overall, answers });
+    if (user) saveSession(user.userId, { region, role, company, difficulty, messages, scores: keywordScores, overall: keywordScores[4], answers });
+
+    // Try AI scoring — fall back to keyword scores if backend unavailable
+    const conversationHistory = (messages || [])
+      .filter(m => !m.isTransition && !m.isClosing && !m.isGibberish)
+      .map(m => ({ sender: m.from === 'interviewer' ? 'interviewer' : 'user', text: m.text }));
+
+    fetch('/api/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ region, role, conversationHistory }),
+    })
+      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+      .then(data => {
+        const s = data.scores;
+        const aiScores = [
+          s.culturalAlignment ?? keywordScores[0],
+          s.answerStructure ?? keywordScores[1],
+          s.confidence ?? keywordScores[2],
+          s.followUpHandling ?? keywordScores[3],
+          Math.round(((s.culturalAlignment ?? 0) + (s.answerStructure ?? 0) + (s.confidence ?? 0) + (s.followUpHandling ?? 0) + (s.fillerControl ?? 0)) / 5) || keywordScores[4],
+        ];
+        setScores(aiScores);
+        setCoaching(generateCoachingFromAI(data.feedback, aiScores));
+        setAiPowered(true);
+      })
+      .catch(() => {
+        // Backend unavailable — keyword scores already set
+      });
+
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -69,6 +101,7 @@ export default function ResultsScreen({ user, sessionData }) {
             </span>
             <span className="overall-label">{scoreLabel}</span>
           </div>
+          {aiPowered && <span className="ai-badge">✨ AI-Powered Analysis</span>}
         </div>
       </div>
 

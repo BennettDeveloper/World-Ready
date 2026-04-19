@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
-import WorldMap from '../components/WorldMap';
+const WorldMap = lazy(() => import('../components/WorldMap'));
 import DifficultySelector from '../components/DifficultySelector';
 import LeaderboardPreview from '../components/LeaderboardPreview';
 import { REGIONS } from '../data/regions';
@@ -131,7 +131,9 @@ export default function LandingPage({ user }) {
 
         {/* Globe */}
         <div className="globe-stage">
-          <WorldMap selectedRegion={selectedRegion} onSelectRegion={handleSelectRegion} />
+          <Suspense fallback={<div className="globe-loading">Loading globe…</div>}>
+            <WorldMap selectedRegion={selectedRegion} onSelectRegion={handleSelectRegion} />
+          </Suspense>
         </div>
 
         {/* Right panel */}

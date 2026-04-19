@@ -6,6 +6,9 @@ import { getPendingSession, clearPendingSession } from '../utils/storage';
 import { DIFFICULTY_SECONDS } from '../components/DifficultySelector';
 import { isGibberish } from '../utils/validation';
 
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+const hasSpeech = !!SpeechRecognition;
+
 export default function InterviewScreen({ onComplete }) {
   const navigate = useNavigate();
   const config = getPendingSession();
@@ -25,7 +28,10 @@ export default function InterviewScreen({ onComplete }) {
   const [timerKey, setTimerKey] = useState(0);
   const [timerRunning, setTimerRunning] = useState(false);
   const [repeatCounts, setRepeatCounts] = useState({});
+  const [listening, setListening] = useState(false);
   const chatRef = useRef(null);
+  const recognitionRef = useRef(null);
+  const finalTranscriptRef = useRef('');
 
   useEffect(() => {
     if (!config || !regionData) { navigate('/home'); return; }
@@ -105,6 +111,43 @@ export default function InterviewScreen({ onComplete }) {
       setMessages(prev => [...prev, { from: 'interviewer', text: regionData.closing, isClosing: true }]);
       setIsComplete(true);
     }
+  }
+
+  function toggleMic() {
+    if (!hasSpeech) return;
+
+    if (listening) {
+      recognitionRef.current?.stop();
+      setListening(false);
+      return;
+    }
+
+    const rec = new SpeechRecognition();
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.lang = 'en-US';
+    finalTranscriptRef.current = draft;
+
+    rec.onresult = (e) => {
+      let interim = '';
+      let final = finalTranscriptRef.current;
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) {
+          final += (final ? ' ' : '') + e.results[i][0].transcript;
+          finalTranscriptRef.current = final;
+        } else {
+          interim += e.results[i][0].transcript;
+        }
+      }
+      setDraft(final + (interim ? ' ' + interim : ''));
+    };
+
+    rec.onend = () => setListening(false);
+    rec.onerror = () => setListening(false);
+
+    recognitionRef.current = rec;
+    rec.start();
+    setListening(true);
   }
 
   function handleFinish() {
@@ -203,10 +246,22 @@ export default function InterviewScreen({ onComplete }) {
             />
             <div className="answer-footer">
               <span className="answer-hint">Cmd/Ctrl + Enter to submit</span>
-              <button className={`btn-primary${draft.trim() ? '' : ' disabled'}`}
-                onClick={() => submitAnswer(draft)} disabled={!draft.trim()}>
-                Submit Answer
-              </button>
+              <div className="answer-footer-right">
+                {hasSpeech && (
+                  <button
+                    className={`mic-btn${listening ? ' active' : ''}`}
+                    onClick={toggleMic}
+                    title={listening ? 'Stop recording' : 'Speak your answer'}
+                    type="button"
+                  >
+                    {listening ? '⏹ Stop' : '🎙 Speak'}
+                  </button>
+                )}
+                <button className={`btn-primary${draft.trim() ? '' : ' disabled'}`}
+                  onClick={() => submitAnswer(draft)} disabled={!draft.trim()}>
+                  Submit Answer
+                </button>
+              </div>
             </div>
           </div>
         )}
