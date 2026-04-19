@@ -52,7 +52,8 @@ public class InterviewController {
         return scoringService.analyze(
                 request.getRegion(),
                 request.getRole(),
-                request.getConversationHistory()
+                request.getConversationHistory(),
+                request.getResumeText()
         );
     }
 

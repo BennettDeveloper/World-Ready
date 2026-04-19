@@ -1,0 +1,136 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  padding: 20px 32px;
+  border-bottom: 1px solid var(--cyan-border);
+  background: rgba(2, 13, 26, 0.8);
+  backdrop-filter: blur(12px);
+}
+
+.logo {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 16px;
+  letter-spacing: 3px;
+  color: var(--text-secondary);
+}
+
+.logoAccent { color: var(--cyan); }
+
+.content {
+  max-width: 680px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 52px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
+}
+
+/* Score hero */
+.scoreHero {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.scoreLabel {
+  font-size: 11px;
+  color: var(--cyan);
+  letter-spacing: 4px;
+  font-family: var(--font-display);
+  font-weight: 600;
+}
+
+.scoreNumber {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 100px;
+  line-height: 1;
+  transition: color 0.5s;
+}
+
+.scoreSub {
+  font-size: 13px;
+  color: var(--text-muted);
+  letter-spacing: 1px;
+}
+
+.scoreSummary {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  max-width: 400px;
+  font-style: italic;
+}
+
+/* Bars */
+.bars {
+  background: rgba(0, 210, 255, 0.03);
+  border: 1px solid var(--cyan-border);
+  border-radius: var(--radius-xl);
+  padding: 36px;
+  backdrop-filter: blur(12px);
+}
+
+/* Actions */
+.actions {
+  display: flex;
+  gap: 12px;
+}
+
+.btnPrimary {
+  flex: 1;
+  padding: 14px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  background: transparent;
+  border: 1px solid var(--cyan);
+  color: var(--cyan);
+  transition: all var(--transition-normal);
+}
+
+.btnPrimary:hover {
+  background: rgba(0, 210, 255, 0.08);
+  box-shadow: 0 0 20px rgba(0, 210, 255, 0.1);
+}
+
+.btnSecondary {
+  flex: 1;
+  padding: 14px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  background: transparent;
+  border: 1px solid var(--violet-border);
+  color: var(--violet);
+  transition: all var(--transition-normal);
+}
+
+.btnSecondary:hover {
+  background: rgba(196, 114, 240, 0.08);
+}
+
+/* Closing line */
+.closingLine {
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+  font-style: italic;
+  line-height: 1.8;
+  padding-top: 8px;
+  border-top: 1px solid var(--cyan-border);
+}

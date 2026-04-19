@@ -2,15 +2,16 @@ import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { logout } from '../utils/auth';
 
-export default function Navbar({ user }) {
+export default function Navbar({ user, onLogout }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
   function handleLogout() {
     logout();
+    onLogout?.();
     setMenuOpen(false);
-    navigate('/');
+    navigate('/login');
   }
 
   const isActive = path => location.pathname === path;
@@ -19,6 +20,8 @@ export default function Navbar({ user }) {
     { to: '/home', label: 'Home' },
     { to: '/profile', label: 'Profile' },
     { to: '/leaderboard', label: 'Leaderboard' },
+    { to: '/reviews', label: 'Reviews' },
+    { to: '/about', label: 'About' },
   ];
 
   return (

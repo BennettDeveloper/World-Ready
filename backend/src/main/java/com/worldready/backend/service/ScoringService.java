@@ -26,6 +26,10 @@ public class ScoringService {
     }
 
     public AnalyzeResponse analyze(String region, String role, List<InterviewMessage> history) {
+        return analyze(region, role, history, null);
+    }
+
+    public AnalyzeResponse analyze(String region, String role, List<InterviewMessage> history, String resumeText) {
         Persona persona = personaService.getPersona(region);
 
         String historyText = history == null ? "" : history.stream()
@@ -38,8 +42,12 @@ public class ScoringService {
                 No markdown. No explanation. No code fences.
                 """;
 
+        String resumeSection = (resumeText != null && !resumeText.isBlank())
+                ? "\n\nCandidate Resume:\n" + resumeText
+                : "";
+
         String userPrompt = """
-                Analyze this %s interview conversation for a %s role.
+                Analyze this %s interview conversation for a %s role.%s
 
                 Conversation:
                 %s
@@ -61,7 +69,7 @@ public class ScoringService {
                     "followUpHandling": "one sentence"
                   }
                 }
-                """.formatted(region, role, historyText);
+                """.formatted(region, role, resumeSection, historyText);
 
         try {
             String raw = claudeService.sendPrompt(systemPrompt, userPrompt);

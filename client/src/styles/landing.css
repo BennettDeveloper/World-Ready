@@ -1,0 +1,27 @@
+/* City time display */
+.city-time {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: rgba(0, 210, 255, 0.06);
+  border: 1px solid var(--cyan-border);
+  border-radius: var(--radius-sm);
+}
+
+.city-time-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--cyan-glow);
+  box-shadow: 0 0 6px var(--cyan-glow);
+  animation: pulse 2s infinite;
+  flex-shrink: 0;
+}
+
+.city-time-text {
+  font-size: 11px;
+  color: var(--cyan);
+  font-family: var(--font-display);
+  letter-spacing: 1px;
+}

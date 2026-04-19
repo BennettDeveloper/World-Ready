@@ -4,35 +4,44 @@ import Timer from '../components/Timer';
 import { REGIONS } from '../data/regions';
 import { getPendingSession, clearPendingSession } from '../utils/storage';
 import { DIFFICULTY_SECONDS } from '../components/DifficultySelector';
+import { isGibberish } from '../utils/validation';
+
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+const hasSpeech = !!SpeechRecognition;
 
 export default function InterviewScreen({ onComplete }) {
   const navigate = useNavigate();
   const config = getPendingSession();
 
-  const [messages, setMessages] = useState([]);
-  const [draft, setDraft] = useState('');
-  const [qIndex, setQIndex] = useState(0);       // which question we're on
-  const [answerCount, setAnswerCount] = useState(0); // how many answers submitted
-  const [isComplete, setIsComplete] = useState(false);
-  const [answers, setAnswers] = useState([]);
-  const [timerKey, setTimerKey] = useState(0);
-  const [timerRunning, setTimerRunning] = useState(false); // starts after greeting
-  const chatRef = useRef(null);
-
   const regionData = config ? REGIONS[config.region] : null;
   const questions = regionData?.questions || [];
   const timerSeconds = DIFFICULTY_SECONDS[config?.difficulty] || 120;
 
+  const [messages, setMessages] = useState(() =>
+    regionData ? [{ from: 'interviewer', text: regionData.greeting, isGreeting: true }] : []
+  );
+  const [draft, setDraft] = useState('');
+  const [qIndex, setQIndex] = useState(0);
+  const [answerCount, setAnswerCount] = useState(0);
+  const [isComplete, setIsComplete] = useState(false);
+  const [answers, setAnswers] = useState([]);
+  const [timerKey, setTimerKey] = useState(0);
+  const [timerRunning, setTimerRunning] = useState(false);
+  const [repeatCounts, setRepeatCounts] = useState({});
+  const [listening, setListening] = useState(false);
+  const chatRef = useRef(null);
+  const textareaRef = useRef(null);
+  const recognitionRef = useRef(null);
+  const finalTranscriptRef = useRef('');
+
   useEffect(() => {
     if (!config || !regionData) { navigate('/home'); return; }
-    // Seed conversation: greeting → then Q1 after a short delay
-    const greeting = { from: 'interviewer', text: regionData.greeting, isGreeting: true };
-    setMessages([greeting]);
     const t = setTimeout(() => {
       setMessages(prev => [...prev, { from: 'interviewer', text: questions[0] }]);
       setTimerRunning(true);
     }, 800);
     return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -43,45 +52,117 @@ export default function InterviewScreen({ onComplete }) {
     const answer = text.trim();
     if (!answer || isComplete) return;
 
-    const newAnswers = [...answers, answer];
-    setAnswers(newAnswers);
     setTimerRunning(false);
-
-    const nextQIndex = qIndex + 1;
-    const updated = [...messages, { from: 'user', text: answer }];
-    setMessages(updated);
+    setMessages(prev => [...prev, { from: 'user', text: answer }]);
     setDraft('');
-    setAnswerCount(c => c + 1);
 
-    // After short delay, show interviewer reaction
-    setTimeout(() => {
-      if (nextQIndex < questions.length) {
-        const transition = regionData.transitions?.[qIndex] || 'Thank you. Let us continue.';
-        setMessages(prev => [...prev, { from: 'interviewer', text: transition, isTransition: true }]);
+    // Gibberish check
+    if (isGibberish(answer)) {
+      const currentRepeats = repeatCounts[qIndex] || 0;
+
+      if (currentRepeats < 2) {
+        // In-character gibberish response + repeat question
+        const gibReply = regionData.gibberishResponse || "I'm sorry, I didn't quite follow that. Let me ask again.";
+        setRepeatCounts(prev => ({ ...prev, [qIndex]: currentRepeats + 1 }));
 
         setTimeout(() => {
-          setMessages(prev => [...prev, { from: 'interviewer', text: questions[nextQIndex] }]);
-          setQIndex(nextQIndex);
-          setTimerKey(k => k + 1);
-          setTimerRunning(true);
-        }, 700);
+          setMessages(prev => [...prev, { from: 'interviewer', text: gibReply, isGibberish: true }]);
+          setTimeout(() => {
+            setMessages(prev => [...prev, { from: 'interviewer', text: questions[qIndex] }]);
+            setTimerKey(k => k + 1);
+            setTimerRunning(true);
+          }, 700);
+        }, 500);
+        return;
       } else {
-        setMessages(prev => [...prev, { from: 'interviewer', text: regionData.closing, isClosing: true }]);
-        setIsComplete(true);
+        // Max repeats reached — move on
+        const moveOn = regionData.moveOnResponse || "Let us continue to the next question.";
+        setTimeout(() => {
+          setMessages(prev => [...prev, { from: 'interviewer', text: moveOn, isTransition: true }]);
+          advanceQuestion(qIndex);
+        }, 500);
+        return;
       }
+    }
+
+    // Valid answer — record and advance
+    const newAnswers = [...answers, answer];
+    setAnswers(newAnswers);
+    setAnswerCount(c => c + 1);
+
+    setTimeout(() => {
+      advanceQuestion(qIndex);
     }, 500);
+  }
+
+  function advanceQuestion(currentQIndex) {
+    const nextQIndex = currentQIndex + 1;
+
+    if (nextQIndex < questions.length) {
+      const transition = regionData.transitions?.[currentQIndex] || 'Thank you. Let us continue.';
+      setMessages(prev => [...prev, { from: 'interviewer', text: transition, isTransition: true }]);
+
+      setTimeout(() => {
+        setMessages(prev => [...prev, { from: 'interviewer', text: questions[nextQIndex] }]);
+        setQIndex(nextQIndex);
+        setTimerKey(k => k + 1);
+        setTimerRunning(true);
+      }, 700);
+    } else {
+      setMessages(prev => [...prev, { from: 'interviewer', text: regionData.closing, isClosing: true }]);
+      setIsComplete(true);
+    }
+  }
+
+  function toggleMic() {
+    if (!hasSpeech) return;
+
+    if (listening) {
+      recognitionRef.current?.stop();
+      setListening(false);
+      return;
+    }
+
+    const rec = new SpeechRecognition();
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.lang = 'en-US';
+    finalTranscriptRef.current = draft;
+
+    rec.onresult = (e) => {
+      let interim = '';
+      let final = finalTranscriptRef.current;
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) {
+          final += (final ? ' ' : '') + e.results[i][0].transcript;
+          finalTranscriptRef.current = final;
+        } else {
+          interim += e.results[i][0].transcript;
+        }
+      }
+      setDraft(final + (interim ? ' ' + interim : ''));
+    };
+
+    rec.onend = () => setListening(false);
+    rec.onerror = () => setListening(false);
+
+    recognitionRef.current = rec;
+    rec.start();
+    setListening(true);
   }
 
   function handleFinish() {
     clearPendingSession();
-    onComplete({
+    const data = {
       region: config.region,
       role: config.role,
       company: config.company,
       difficulty: config.difficulty,
       messages,
       answers,
-    });
+    };
+    localStorage.setItem('wr_last_session', JSON.stringify(data));
+    onComplete(data);
     navigate('/results');
   }
 
@@ -143,7 +224,7 @@ export default function InterviewScreen({ onComplete }) {
 
         <div className="chat-bubbles" ref={chatRef}>
           {messages.map((msg, i) => (
-            <div key={i} className={`bubble ${msg.from}${msg.isGreeting ? ' greeting' : ''}${msg.isTransition ? ' transition' : ''}${msg.isClosing ? ' closing' : ''}`}>
+            <div key={i} className={`bubble ${msg.from}${msg.isGreeting ? ' greeting' : ''}${msg.isTransition ? ' transition' : ''}${msg.isClosing ? ' closing' : ''}${msg.isGibberish ? ' gibberish-warning' : ''}`}>
               {msg.from === 'interviewer' && (
                 <span className="bubble-avatar">{regionData.flag}</span>
               )}
@@ -160,7 +241,7 @@ export default function InterviewScreen({ onComplete }) {
           </div>
         ) : (
           <div className="answer-area">
-            <textarea className="answer-textarea"
+            <textarea ref={textareaRef} className="answer-textarea"
               placeholder={`Respond to ${regionData.interviewer}… (Cmd/Ctrl + Enter to submit)`}
               value={draft}
               onChange={e => setDraft(e.target.value)}
@@ -168,10 +249,22 @@ export default function InterviewScreen({ onComplete }) {
             />
             <div className="answer-footer">
               <span className="answer-hint">Cmd/Ctrl + Enter to submit</span>
-              <button className={`btn-primary${draft.trim() ? '' : ' disabled'}`}
-                onClick={() => submitAnswer(draft)} disabled={!draft.trim()}>
-                Submit Answer
-              </button>
+              <div className="answer-footer-right">
+                {hasSpeech && (
+                  <button
+                    className={`mic-btn${listening ? ' active' : ''}`}
+                    onClick={toggleMic}
+                    title={listening ? 'Stop recording' : 'Speak your answer'}
+                    type="button"
+                  >
+                    {listening ? '⏹ Stop' : '🎙 Speak'}
+                  </button>
+                )}
+                <button className={`btn-primary${draft.trim() ? '' : ' disabled'}`}
+                  onClick={() => submitAnswer(draft)} disabled={!draft.trim()}>
+                  Submit Answer
+                </button>
+              </div>
             </div>
           </div>
         )}

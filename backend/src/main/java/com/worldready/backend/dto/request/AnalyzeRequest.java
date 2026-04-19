@@ -18,4 +18,8 @@ public class AnalyzeRequest {
 
     public List<InterviewMessage> getConversationHistory() { return conversationHistory; }
     public void setConversationHistory(List<InterviewMessage> conversationHistory) { this.conversationHistory = conversationHistory; }
+
+    private String resumeText;
+    public String getResumeText() { return resumeText; }
+    public void setResumeText(String resumeText) { this.resumeText = resumeText; }
 }

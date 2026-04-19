@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { register } from '../utils/auth';
+import { setResume } from '../utils/storage';
 
 export default function RegisterPage({ onLogin }) {
-  const [form, setForm] = useState({ name: '', email: '', username: '', password: '', confirm: '' });
+  const [form, setForm] = useState({ name: '', email: '', username: '', password: '', confirm: '', resume: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -41,6 +42,7 @@ export default function RegisterPage({ onLogin }) {
     setTimeout(() => {
       const result = register({ name: name.trim(), email: email.trim(), username: username.trim(), password });
       if (result.success) {
+        if (form.resume.trim()) setResume(result.user.userId, form.resume.trim());
         onLogin(result.user);
         navigate('/home');
       } else {
@@ -100,6 +102,21 @@ export default function RegisterPage({ onLogin }) {
             </div>
           </div>
 
+          <div className="form-group">
+            <label className="form-label" htmlFor="resume">
+              Resume <span className="optional">(optional — paste your resume text for personalized interview questions)</span>
+            </label>
+            <textarea
+              id="resume"
+              name="resume"
+              className="form-input resume-textarea"
+              placeholder="Paste your resume here — work experience, skills, education…"
+              value={form.resume}
+              onChange={handleChange}
+              rows={5}
+            />
+          </div>
+
           {error && <div className="form-error">{error}</div>}
 
           <button type="submit" className="btn-primary full-width" disabled={loading}>
@@ -108,7 +125,7 @@ export default function RegisterPage({ onLogin }) {
 
           <p className="auth-switch">
             Already have an account?{' '}
-            <Link to="/" className="auth-link">Sign in</Link>
+            <Link to="/login" className="auth-link">Sign in</Link>
           </p>
         </form>
       </div>
