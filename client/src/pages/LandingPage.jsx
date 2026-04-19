@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 const WorldMap = lazy(() => import('../components/WorldMap'));
 import DifficultySelector from '../components/DifficultySelector';
@@ -6,19 +6,32 @@ import LeaderboardPreview from '../components/LeaderboardPreview';
 import { REGIONS } from '../data/regions';
 import { setPendingSession, getResume } from '../utils/storage';
 import { isValidJobTitle } from '../utils/validation';
+import { getCityTimeContext } from '../utils/maps';
 
 export default function LandingPage({ user }) {
-  const [selectedRegion, setSelectedRegion] = useState(null);
+  const [selectedRegion, setSelectedRegion] = useState(() => localStorage.getItem('wr_selected_region') || null);
   const [role, setRole] = useState('');
   const [company, setCompany] = useState('');
   const [difficulty, setDifficulty] = useState('medium');
-  const [showSetup, setShowSetup] = useState(false);
+  const [showSetup, setShowSetup] = useState(() => !!localStorage.getItem('wr_selected_region'));
+  const [timeContext, setTimeContext] = useState('');
   const navigate = useNavigate();
 
   const canBegin = selectedRegion && isValidJobTitle(role);
   const region = selectedRegion ? REGIONS[selectedRegion] : null;
 
+  useEffect(() => {
+    localStorage.removeItem('wr_selected_region');
+  }, []);
+
+  useEffect(() => {
+    if (!selectedRegion || !REGIONS[selectedRegion]) { setTimeContext(''); return; }
+    const r = REGIONS[selectedRegion];
+    getCityTimeContext(r.lat, r.lon, r.name).then(d => setTimeContext(d.contextString || ''));
+  }, [selectedRegion]);
+
   function handleSelectRegion(key) {
+    localStorage.removeItem('wr_selected_region');
     setSelectedRegion(key);
     setShowSetup(true);
   }
@@ -26,7 +39,7 @@ export default function LandingPage({ user }) {
   function handleBegin() {
     if (!canBegin) return;
     const resumeText = user?.userId ? getResume(user.userId) : '';
-    setPendingSession({ region: selectedRegion, role: role.trim(), company: company.trim(), difficulty, resumeText });
+    setPendingSession({ region: selectedRegion, role: role.trim(), company: company.trim(), difficulty, resumeText, timeContext });
     navigate('/interview');
   }
 

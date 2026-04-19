@@ -11,7 +11,7 @@ export default function Navbar({ user, onLogout }) {
     logout();
     onLogout?.();
     setMenuOpen(false);
-    navigate('/');
+    navigate('/login');
   }
 
   const isActive = path => location.pathname === path;

@@ -15,7 +15,7 @@ export default function ProfilePage({ user }) {
   const navigate = useNavigate()
   const history = useMemo(() => (user ? getHistory(user.userId) : []), [user])
 
-  if (!user) { navigate('/'); return null }
+  if (!user) { navigate('/login'); return null }
 
   const totalSessions = history.length
   const avgScore = totalSessions > 0

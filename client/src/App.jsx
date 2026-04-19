@@ -4,6 +4,7 @@ import Navbar from './components/Navbar';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import LandingPage from './pages/LandingPage';
+import PublicLandingPage from './pages/PublicLandingPage';
 import InterviewScreen from './pages/InterviewScreen';
 import ResultsScreen from './pages/ResultsScreen';
 import ProfilePage from './pages/ProfilePage';
@@ -15,11 +16,7 @@ import { getSession } from './utils/auth';
 import './App.css';
 
 function ProtectedRoute({ children, user }) {
-  return user ? children : <Navigate to="/" replace />;
-}
-
-function PublicRoute({ children, user }) {
-  return !user ? children : <Navigate to="/home" replace />;
+  return user ? children : <Navigate to="/login" replace />;
 }
 
 export default function App() {
@@ -27,7 +24,7 @@ export default function App() {
   const [sessionData, setSessionData] = useState(null);
   const location = useLocation();
 
-  const hideNav = ['/', '/register'].includes(location.pathname);
+  const hideNav = ['/', '/login', '/register'].includes(location.pathname);
 
   function handleLogin(u) { setUser(u); }
   function handleLogout() { setUser(null); }
@@ -38,15 +35,12 @@ export default function App() {
 
       <main className={`main-content${hideNav ? ' no-nav' : ''}`}>
         <Routes>
-          <Route path="/" element={
-            <PublicRoute user={user}>
-              <LoginPage onLogin={handleLogin} />
-            </PublicRoute>
+          <Route path="/" element={<PublicLandingPage user={user} />} />
+          <Route path="/login" element={
+            user ? <Navigate to="/home" replace /> : <LoginPage onLogin={handleLogin} />
           } />
           <Route path="/register" element={
-            <PublicRoute user={user}>
-              <RegisterPage onLogin={handleLogin} />
-            </PublicRoute>
+            user ? <Navigate to="/home" replace /> : <RegisterPage onLogin={handleLogin} />
           } />
           <Route path="/home" element={
             <ProtectedRoute user={user}>

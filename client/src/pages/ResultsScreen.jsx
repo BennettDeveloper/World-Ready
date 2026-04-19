@@ -16,16 +16,20 @@ export default function ResultsScreen({ user, sessionData }) {
   const [showTranscript, setShowTranscript] = useState(false);
   const [aiPowered, setAiPowered] = useState(false);
 
-  const { region, role, company, difficulty, messages, answers } = sessionData || {};
+  const resolvedData = sessionData || (() => {
+    try { return JSON.parse(localStorage.getItem('wr_last_session') || 'null'); } catch { return null; }
+  })();
+
+  const { region, role, company, difficulty, messages, answers } = resolvedData || {};
   const regionData = REGIONS[region];
 
-  const keywordScores = sessionData ? scoreAnswers(answers, region, role) : [65, 65, 65, 65, 65];
+  const keywordScores = resolvedData ? scoreAnswers(answers, region, role) : [65, 65, 65, 65, 65];
   const [scores, setScores] = useState(keywordScores);
   const [coaching, setCoaching] = useState(() => generateCoaching(keywordScores, region));
   const overall = scores[4];
 
   useEffect(() => {
-    if (!sessionData) { navigate('/home'); return; }
+    if (!resolvedData) { navigate('/home'); return; }
     const t = setTimeout(() => setAnimated(true), 150);
     if (user) saveSession(user.userId, { region, role, company, difficulty, messages, scores: keywordScores, overall: keywordScores[4], answers });
 
@@ -37,7 +41,7 @@ export default function ResultsScreen({ user, sessionData }) {
     fetch('/api/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ region, role, conversationHistory, resumeText: sessionData.resumeText || '' }),
+      body: JSON.stringify({ region, role, conversationHistory, resumeText: resolvedData.resumeText || '' }),
     })
       .then(r => { if (!r.ok) throw new Error(); return r.json(); })
       .then(data => {
@@ -61,7 +65,7 @@ export default function ResultsScreen({ user, sessionData }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (!sessionData) return null;
+  if (!resolvedData) return null;
 
   function handleSubmitLeaderboard() {
     if (submitted || !user) return;

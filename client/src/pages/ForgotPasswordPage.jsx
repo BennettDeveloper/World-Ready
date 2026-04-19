@@ -87,7 +87,7 @@ export default function ForgotPasswordPage() {
               {loading ? <span className="spinner" /> : 'Verify Account'}
             </button>
             <p className="auth-switch">
-              <Link to="/" className="auth-link">← Back to Sign In</Link>
+              <Link to="/login" className="auth-link">← Back to Sign In</Link>
             </p>
           </form>
         )}
@@ -121,7 +121,7 @@ export default function ForgotPasswordPage() {
               <span className="reset-success-icon">✅</span>
               <h2 className="auth-title">Password Reset!</h2>
               <p className="form-help-text">Your password has been updated. You can now sign in with your new password.</p>
-              <Link to="/" className="btn-primary full-width" style={{ textAlign: 'center', display: 'block', marginTop: '16px' }}>
+              <Link to="/login" className="btn-primary full-width" style={{ textAlign: 'center', display: 'block', marginTop: '16px' }}>
                 Sign In
               </Link>
             </div>

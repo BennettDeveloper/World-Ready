@@ -1,9 +1,10 @@
 import { useNavigate } from 'react-router-dom';
 
 const TEAM = [
-  { name: 'James Kollilon Barclay III', role: 'Full-Stack Lead', flag: '🇺🇸', initial: 'J' },
-  { name: 'Derwin Bell', role: 'Backend & Systems', flag: '🇺🇸', initial: 'D' },
-  { name: 'Bennett Developer', role: 'Frontend & Design', flag: '🇺🇸', initial: 'B' },
+  { name: 'Chris Bennett', role: 'Back End Developer & Product Owner', flag: '🇺🇸', initial: 'C' },
+  { name: 'Bobby Money', role: 'Project Lead & Front End Developer', flag: '🇺🇸', initial: 'B' },
+  { name: 'Derwin Bell', role: 'Back End Lead & Systems', flag: '🇺🇸', initial: 'D' },
+  { name: 'James Kollilon Barclay III', role: 'Front End Developer & Design Lead', flag: '🇺🇸', initial: 'J' },
 ];
 
 const PILLARS = [

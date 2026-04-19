@@ -125,7 +125,7 @@ export default function RegisterPage({ onLogin }) {
 
           <p className="auth-switch">
             Already have an account?{' '}
-            <Link to="/" className="auth-link">Sign in</Link>
+            <Link to="/login" className="auth-link">Sign in</Link>
           </p>
         </form>
       </div>

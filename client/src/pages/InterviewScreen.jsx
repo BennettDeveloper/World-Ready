@@ -30,6 +30,7 @@ export default function InterviewScreen({ onComplete }) {
   const [repeatCounts, setRepeatCounts] = useState({});
   const [listening, setListening] = useState(false);
   const chatRef = useRef(null);
+  const textareaRef = useRef(null);
   const recognitionRef = useRef(null);
   const finalTranscriptRef = useRef('');
 
@@ -152,14 +153,16 @@ export default function InterviewScreen({ onComplete }) {
 
   function handleFinish() {
     clearPendingSession();
-    onComplete({
+    const data = {
       region: config.region,
       role: config.role,
       company: config.company,
       difficulty: config.difficulty,
       messages,
       answers,
-    });
+    };
+    localStorage.setItem('wr_last_session', JSON.stringify(data));
+    onComplete(data);
     navigate('/results');
   }
 
@@ -238,7 +241,7 @@ export default function InterviewScreen({ onComplete }) {
           </div>
         ) : (
           <div className="answer-area">
-            <textarea className="answer-textarea"
+            <textarea ref={textareaRef} className="answer-textarea"
               placeholder={`Respond to ${regionData.interviewer}… (Cmd/Ctrl + Enter to submit)`}
               value={draft}
               onChange={e => setDraft(e.target.value)}
