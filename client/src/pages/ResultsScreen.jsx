@@ -47,7 +47,10 @@ function AnimatedBar({ label, score, index, animated }) {
       transform: animated ? 'translateY(0)' : 'translateY(10px)',
       transition: `opacity 0.4s ease ${index * 0.1}s, transform 0.4s ease ${index * 0.1}s`,
     }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '8px' }}>
+      <div style={{
+        display: 'flex', justifyContent: 'space-between',
+        alignItems: 'baseline', marginBottom: '8px',
+      }}>
         <span style={{
           fontFamily: 'var(--font-display)', fontWeight: 600,
           fontSize: '12px', letterSpacing: '2px',
@@ -61,7 +64,7 @@ function AnimatedBar({ label, score, index, animated }) {
       </div>
       <div style={{
         height: '5px', background: 'rgba(255,255,255,0.06)',
-        borderRadius: '999px', overflow: 'hidden', marginBottom: '8px',
+        borderRadius: '999px', overflow: 'hidden',
       }}>
         <div style={{
           height: '100%', width: `${width}%`,
@@ -85,7 +88,10 @@ function CoachingCard({ category, tip, score, icon }) {
       padding: '14px',
       display: 'flex', flexDirection: 'column', gap: '8px',
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{
+        display: 'flex', alignItems: 'center',
+        justifyContent: 'space-between',
+      }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '16px' }}>{icon}</span>
           <span style={{
@@ -101,33 +107,39 @@ function CoachingCard({ category, tip, score, icon }) {
       </div>
       <p style={{
         fontSize: '12px', color: 'var(--text-secondary)',
-        lineHeight: 1.65, fontStyle: 'italic',
+        lineHeight: 1.65, fontStyle: 'italic', margin: 0,
       }}>{tip}</p>
     </div>
   )
 }
 
-export default function ResultsScreen({ user, sessionData }) {
+export default function ResultsScreen({ user, sessionData: propSessionData }) {
   const navigate = useNavigate()
   const [animated, setAnimated] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [showTranscript, setShowTranscript] = useState(false)
 
-  const { region, role, company, difficulty, messages, answers } = sessionData || {};
-  const regionData = REGIONS[region];
-  const scores = sessionData ? scoreAnswers(answers, region, role) : [65, 65, 65, 65, 65];
-  const coaching = generateCoaching(scores);
-  const overall = scores[4];
+  const sessionData = propSessionData || (() => {
+    try { return JSON.parse(localStorage.getItem('wr_last_session') || 'null') } catch { return null }
+  })()
+
+  const { region, role, company, difficulty, messages, answers } = sessionData || {}
+  const regionData = REGIONS[region]
+  const scores = sessionData ? scoreAnswers(answers, region, role) : [65, 65, 65, 65, 65]
+  const coaching = generateCoaching(scores)
+  const overall = scores[4]
+  const color = scoreColor(overall)
+  const scoreLabel = overall >= 85 ? 'Outstanding' : overall >= 70 ? 'Solid Performance' : 'Keep Practicing'
 
   useEffect(() => {
-    if (!sessionData) { navigate('/home'); return; }
-    const t = setTimeout(() => setAnimated(true), 150);
-    if (user) saveSession(user.userId, { region, role, company, difficulty, messages, scores, overall, answers });
-    return () => clearTimeout(t);
+    if (!sessionData) { navigate('/home'); return }
+    const t = setTimeout(() => setAnimated(true), 150)
+    if (user) saveSession(user.userId, { region, role, company, difficulty, messages, scores, overall, answers })
+    return () => clearTimeout(t)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [])
 
-  if (!sessionData) return null;
+  if (!sessionData) return null
 
   function handleSubmitLeaderboard() {
     if (submitted || !user) return
@@ -158,8 +170,9 @@ export default function ResultsScreen({ user, sessionData }) {
         display: 'grid', gridTemplateColumns: '1fr 1fr',
         gap: '24px', alignItems: 'start',
       }}>
-        {/* Evaluator badge */}
-        <div className="glass-panel" style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+        <div className="glass-panel" style={{
+          display: 'flex', alignItems: 'center', gap: '14px',
+        }}>
           <div style={{
             width: '56px', height: '56px', borderRadius: '50%',
             background: 'linear-gradient(135deg, rgba(0,210,255,0.15), rgba(196,114,240,0.15))',
@@ -168,26 +181,31 @@ export default function ResultsScreen({ user, sessionData }) {
             fontSize: '24px', flexShrink: 0,
           }}>{regionData?.flag}</div>
           <div>
-            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '15px', color: 'var(--text-primary)' }}>
-              {regionData?.interviewer}
-            </div>
+            <div style={{
+              fontFamily: 'var(--font-display)', fontWeight: 700,
+              fontSize: '15px', color: 'var(--text-primary)',
+            }}>{regionData?.interviewer}</div>
             <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>
               {regionData?.name} Interview
             </div>
             <span style={{
               display: 'inline-block', padding: '2px 10px',
-              background: 'rgba(0,210,255,0.08)', border: '1px solid var(--cyan-border)',
+              background: 'rgba(0,210,255,0.08)',
+              border: '1px solid var(--cyan-border)',
               borderRadius: '999px', fontSize: '10px', color: 'var(--cyan)',
               letterSpacing: '1px', fontFamily: 'var(--font-display)',
             }}>{regionData?.styleTag}</span>
           </div>
         </div>
 
-        {/* Score */}
-        <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-          <div style={{ fontSize: '11px', color: 'var(--cyan)', letterSpacing: '4px', fontFamily: 'var(--font-display)' }}>
-            INTERVIEW COMPLETE
-          </div>
+        <div style={{
+          textAlign: 'center', display: 'flex',
+          flexDirection: 'column', alignItems: 'center', gap: '8px',
+        }}>
+          <div style={{
+            fontSize: '11px', color: 'var(--cyan)',
+            letterSpacing: '4px', fontFamily: 'var(--font-display)',
+          }}>INTERVIEW COMPLETE</div>
           <div style={{
             fontFamily: 'var(--font-display)', fontWeight: 800,
             fontSize: '80px', lineHeight: 1, color,
@@ -206,19 +224,24 @@ export default function ResultsScreen({ user, sessionData }) {
 
       {/* Stat bars */}
       <div className="glass-panel">
-        <div style={{ fontSize: '11px', color: 'var(--cyan)', letterSpacing: '3px', fontFamily: 'var(--font-display)', marginBottom: '20px' }}>
-          PERFORMANCE BREAKDOWN
-        </div>
+        <div style={{
+          fontSize: '11px', color: 'var(--cyan)', letterSpacing: '3px',
+          fontFamily: 'var(--font-display)', marginBottom: '20px',
+        }}>PERFORMANCE BREAKDOWN</div>
         {scores.map((score, i) => (
-          <AnimatedBar key={i} label={STAT_LABELS[i]} score={score} index={i} animated={animated} />
+          <AnimatedBar
+            key={i} label={STAT_LABELS[i]}
+            score={score} index={i} animated={animated}
+          />
         ))}
       </div>
 
       {/* Coaching */}
       <div>
-        <div style={{ fontSize: '11px', color: 'var(--cyan)', letterSpacing: '3px', fontFamily: 'var(--font-display)', marginBottom: '16px' }}>
-          COACHING FEEDBACK
-        </div>
+        <div style={{
+          fontSize: '11px', color: 'var(--cyan)', letterSpacing: '3px',
+          fontFamily: 'var(--font-display)', marginBottom: '16px',
+        }}>COACHING FEEDBACK</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
           {coaching.map((c, i) => <CoachingCard key={i} {...c} />)}
         </div>
@@ -229,8 +252,9 @@ export default function ResultsScreen({ user, sessionData }) {
         <button
           onClick={() => setShowTranscript(t => !t)}
           style={{
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            width: '100%', background: 'transparent', border: 'none',
+            display: 'flex', justifyContent: 'space-between',
+            alignItems: 'center', width: '100%',
+            background: 'transparent', border: 'none',
             color: 'var(--text-secondary)', cursor: 'pointer',
             fontFamily: 'var(--font-ui)', fontSize: '13px',
           }}
@@ -240,8 +264,11 @@ export default function ResultsScreen({ user, sessionData }) {
         </button>
 
         {showTranscript && (
-          <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {messages.map((msg, i) => (
+          <div style={{
+            marginTop: '16px', display: 'flex',
+            flexDirection: 'column', gap: '12px',
+          }}>
+            {messages?.map((msg, i) => (
               <div key={i} style={{
                 display: 'flex', gap: '10px',
                 flexDirection: msg.from === 'user' ? 'row-reverse' : 'row',
@@ -250,8 +277,7 @@ export default function ResultsScreen({ user, sessionData }) {
                   {msg.from === 'interviewer' ? regionData?.flag || '🎙' : '🧑'}
                 </span>
                 <span style={{
-                  fontSize: '13px', color: 'var(--text-secondary)',
-                  lineHeight: 1.6, maxWidth: '80%',
+                  fontSize: '13px', lineHeight: 1.6, maxWidth: '80%',
                   fontStyle: msg.isGreeting || msg.isTransition ? 'italic' : 'normal',
                   color: msg.isTransition ? 'var(--text-muted)' : 'var(--text-secondary)',
                 }}>
@@ -274,8 +300,7 @@ export default function ResultsScreen({ user, sessionData }) {
             fontFamily: 'var(--font-display)', fontWeight: 700,
             fontSize: '13px', letterSpacing: '2px',
             textTransform: 'uppercase', color: 'var(--bg-primary)',
-            cursor: 'pointer', transition: 'all var(--transition-normal)',
-            minWidth: '160px',
+            cursor: 'pointer', minWidth: '160px',
           }}
         >
           Try Another Region
@@ -294,7 +319,6 @@ export default function ResultsScreen({ user, sessionData }) {
             textTransform: 'uppercase',
             color: submitted ? 'var(--score-high)' : 'var(--cyan)',
             cursor: submitted ? 'default' : 'pointer',
-            transition: 'all var(--transition-normal)',
             minWidth: '160px',
           }}
         >
@@ -311,8 +335,7 @@ export default function ResultsScreen({ user, sessionData }) {
             fontFamily: 'var(--font-display)', fontWeight: 700,
             fontSize: '13px', letterSpacing: '2px',
             textTransform: 'uppercase', color: 'var(--violet)',
-            cursor: 'pointer', transition: 'all var(--transition-normal)',
-            minWidth: '160px',
+            cursor: 'pointer', minWidth: '160px',
           }}
         >
           📤 Share Results
@@ -325,14 +348,12 @@ export default function ResultsScreen({ user, sessionData }) {
             background: 'transparent', border: 'none',
             color: 'var(--text-muted)', cursor: 'pointer',
             fontFamily: 'var(--font-ui)', fontSize: '13px',
-            transition: 'color var(--transition-fast)',
           }}
         >
           View Profile →
         </button>
       </div>
 
-      {/* Closing line */}
       <p style={{
         textAlign: 'center', fontSize: '13px',
         color: 'var(--text-muted)', fontStyle: 'italic',

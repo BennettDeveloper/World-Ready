@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import WorldMap from '../components/WorldMap';
 import DifficultySelector from '../components/DifficultySelector';
@@ -6,6 +6,7 @@ import LeaderboardPreview from '../components/LeaderboardPreview';
 import { REGIONS } from '../data/regions';
 import { setPendingSession } from '../utils/storage';
 import { isValidJobTitle } from '../utils/validation';
+import { getCityTimeContext } from '../utils/maps';
 
 export default function LandingPage({ user }) {
   const [selectedRegion, setSelectedRegion] = useState(null)
@@ -59,7 +60,7 @@ export default function LandingPage({ user }) {
         overflow: 'hidden',
       }}>
 
-        {/* ── Left panel ── */}
+        {/* Left panel */}
         <aside style={{
           display: 'flex', flexDirection: 'column',
           gap: '12px', overflowY: 'auto', paddingRight: '16px',
@@ -80,7 +81,6 @@ export default function LandingPage({ user }) {
             </p>
           </div>
 
-          {/* Selected region card */}
           {region && (
             <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
@@ -146,7 +146,6 @@ export default function LandingPage({ user }) {
             </div>
           )}
 
-          {/* Setup form — only when region selected */}
           {region && (
             <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -226,7 +225,7 @@ export default function LandingPage({ user }) {
           <WorldMap selectedRegion={selectedRegion} onSelectRegion={handleSelectRegion} />
         </div>
 
-        {/* ── Right panel ── */}
+        {/* Right panel */}
         <aside style={{
           display: 'flex', flexDirection: 'column',
           gap: '16px', paddingLeft: '16px', overflowY: 'auto',

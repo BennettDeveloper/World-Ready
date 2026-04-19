@@ -16,32 +16,37 @@ export default function InterviewScreen({ onComplete }) {
   const navigate = useNavigate()
   const config = getPendingSession()
 
-  const regionData = config ? REGIONS[config.region] : null;
-  const questions = regionData?.questions || [];
-  const timerSeconds = DIFFICULTY_SECONDS[config?.difficulty] || 120;
+  const regionData = config ? REGIONS[config.region] : null
+  const questions = regionData?.questions || []
+  const timerSeconds = DIFFICULTY_SECONDS[config?.difficulty] || 120
 
   const [messages, setMessages] = useState(() =>
     regionData ? [{ from: 'interviewer', text: regionData.greeting, isGreeting: true }] : []
-  );
-  const [draft, setDraft] = useState('');
-  const [qIndex, setQIndex] = useState(0);
-  const [answerCount, setAnswerCount] = useState(0);
-  const [isComplete, setIsComplete] = useState(false);
-  const [answers, setAnswers] = useState([]);
-  const [timerKey, setTimerKey] = useState(0);
-  const [timerRunning, setTimerRunning] = useState(false);
-  const [repeatCounts, setRepeatCounts] = useState({});
-  const chatRef = useRef(null);
+  )
+  const [draft, setDraft] = useState('')
+  const [qIndex, setQIndex] = useState(0)
+  const [answerCount, setAnswerCount] = useState(0)
+  const [isComplete, setIsComplete] = useState(false)
+  const [answers, setAnswers] = useState([])
+  const [timerKey, setTimerKey] = useState(0)
+  const [timerRunning, setTimerRunning] = useState(false)
+  const [repeatCounts, setRepeatCounts] = useState({})
+  const chatRef = useRef(null)
+  const textareaRef = useRef(null)
 
   useEffect(() => {
-    if (!config || !regionData) { navigate('/home'); return; }
+    if (!config || !regionData) { navigate('/home'); return }
     const t = setTimeout(() => {
-      setMessages(prev => [...prev, { from: 'interviewer', text: questions[0] }]);
-      setTimerRunning(true);
-    }, 800);
-    return () => clearTimeout(t);
+      setMessages(prev => [...prev, { from: 'interviewer', text: questions[0] }])
+      setTimerRunning(true)
+    }, 800)
+    return () => clearTimeout(t)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [])
+
+  useEffect(() => {
+    if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight
+  }, [messages])
 
   useEffect(() => {
     if (!isComplete && textareaRef.current) textareaRef.current.focus()
@@ -57,10 +62,8 @@ export default function InterviewScreen({ onComplete }) {
     if (isGibberish(answer)) {
       const currentRepeats = repeatCounts[qIndex] || 0
       if (currentRepeats < 2) {
-        // In-character gibberish response + repeat question
-        const gibReply = regionData.gibberishResponse || "I'm sorry, I didn't quite follow that. Let me ask again.";
-        setRepeatCounts(prev => ({ ...prev, [qIndex]: currentRepeats + 1 }));
-
+        const gibReply = regionData.gibberishResponse || "I'm sorry, I didn't quite follow that."
+        setRepeatCounts(prev => ({ ...prev, [qIndex]: currentRepeats + 1 }))
         setTimeout(() => {
           setMessages(prev => [...prev, { from: 'interviewer', text: gibReply, isGibberish: true }])
           setTimeout(() => {
@@ -104,14 +107,16 @@ export default function InterviewScreen({ onComplete }) {
   }
 
   function handleFinish() {
-    clearPendingSession()
-    onComplete({
-      region: config.region, role: config.role,
-      company: config.company, difficulty: config.difficulty,
-      messages, answers,
-    })
-    navigate('/results')
+  clearPendingSession()
+  const data = {
+    region: config.region, role: config.role,
+    company: config.company, difficulty: config.difficulty,
+    messages, answers,
   }
+  localStorage.setItem('wr_last_session', JSON.stringify(data))
+  onComplete(data)
+  navigate('/results')
+}
 
   if (!config || !regionData) return null
 
@@ -122,7 +127,6 @@ export default function InterviewScreen({ onComplete }) {
       minHeight: '100vh', display: 'flex', flexDirection: 'column',
       position: 'relative', zIndex: 1,
     }}>
-      {/* Top bar */}
       <div style={{
         display: 'grid', gridTemplateColumns: '280px 1fr',
         height: 'calc(100vh - 60px)',
@@ -134,7 +138,6 @@ export default function InterviewScreen({ onComplete }) {
           padding: '20px 16px', borderRight: '1px solid var(--cyan-border)',
           background: 'rgba(0,210,255,0.02)', overflowY: 'auto',
         }}>
-          {/* Avatar */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{
               width: '56px', height: '56px', borderRadius: '50%',
@@ -166,7 +169,6 @@ export default function InterviewScreen({ onComplete }) {
 
           <div style={{ height: '1px', background: 'var(--cyan-border)' }} />
 
-          {/* Progress */}
           <div>
             <div style={{ fontSize: '10px', color: 'var(--text-muted)', letterSpacing: '3px', fontFamily: 'var(--font-display)', marginBottom: '8px' }}>
               PROGRESS
@@ -190,7 +192,6 @@ export default function InterviewScreen({ onComplete }) {
             </div>
           </div>
 
-          {/* Timer */}
           {!isComplete && timerRunning && (
             <div>
               <div style={{ fontSize: '10px', color: 'var(--text-muted)', letterSpacing: '3px', fontFamily: 'var(--font-display)', marginBottom: '8px' }}>
@@ -205,7 +206,6 @@ export default function InterviewScreen({ onComplete }) {
             </div>
           )}
 
-          {/* Status */}
           <div style={{
             display: 'flex', alignItems: 'center', gap: '8px',
             padding: '10px 12px',
@@ -225,7 +225,6 @@ export default function InterviewScreen({ onComplete }) {
             </span>
           </div>
 
-          {/* Meta */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
             <span style={{
               padding: '3px 8px', background: 'var(--bg-card)',
@@ -251,7 +250,6 @@ export default function InterviewScreen({ onComplete }) {
             }}>{config.difficulty}</span>
           </div>
 
-          {/* Traits */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
             {regionData.personalityTraits?.map(t => (
               <span key={t} style={{
@@ -263,7 +261,6 @@ export default function InterviewScreen({ onComplete }) {
             ))}
           </div>
 
-          {/* Evaluating */}
           <div>
             <div style={{ fontSize: '10px', color: 'var(--text-muted)', letterSpacing: '3px', fontFamily: 'var(--font-display)', marginBottom: '8px' }}>
               EVALUATING
@@ -280,7 +277,6 @@ export default function InterviewScreen({ onComplete }) {
         {/* Right — Chat */}
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
 
-          {/* Chat header */}
           <div style={{
             display: 'flex', alignItems: 'center', gap: '12px',
             padding: '16px 24px',
@@ -301,15 +297,11 @@ export default function InterviewScreen({ onComplete }) {
             </div>
           </div>
 
-          {/* Messages */}
-          <div
-            ref={chatRef}
-            style={{
-              flex: 1, overflowY: 'auto',
-              padding: '24px', display: 'flex',
-              flexDirection: 'column', gap: '16px',
-            }}
-          >
+          <div ref={chatRef} style={{
+            flex: 1, overflowY: 'auto',
+            padding: '24px', display: 'flex',
+            flexDirection: 'column', gap: '16px',
+          }}>
             {messages.map((msg, i) => (
               <div key={i} style={{
                 display: 'flex',
@@ -327,8 +319,7 @@ export default function InterviewScreen({ onComplete }) {
                   }}>{regionData.flag}</div>
                 )}
                 <div style={{
-                  maxWidth: '75%',
-                  padding: '14px 18px',
+                  maxWidth: '75%', padding: '14px 18px',
                   borderRadius: msg.from === 'interviewer'
                     ? '0 var(--radius-md) var(--radius-md) var(--radius-md)'
                     : 'var(--radius-md) 0 var(--radius-md) var(--radius-md)',
@@ -360,25 +351,21 @@ export default function InterviewScreen({ onComplete }) {
             ))}
           </div>
 
-          {/* Answer area */}
           {isComplete ? (
             <div style={{
               padding: '20px 24px',
               borderTop: '1px solid var(--cyan-border)',
               background: 'rgba(0,255,204,0.02)',
             }}>
-              <button
-                onClick={handleFinish}
-                style={{
-                  width: '100%', padding: '14px',
-                  background: 'var(--cyan)', border: 'none',
-                  borderRadius: 'var(--radius-md)',
-                  fontFamily: 'var(--font-display)', fontWeight: 700,
-                  fontSize: '15px', letterSpacing: '2px',
-                  textTransform: 'uppercase', color: 'var(--bg-primary)',
-                  cursor: 'pointer', transition: 'all var(--transition-normal)',
-                }}
-              >
+              <button onClick={handleFinish} style={{
+                width: '100%', padding: '14px',
+                background: 'var(--cyan)', border: 'none',
+                borderRadius: 'var(--radius-md)',
+                fontFamily: 'var(--font-display)', fontWeight: 700,
+                fontSize: '15px', letterSpacing: '2px',
+                textTransform: 'uppercase', color: 'var(--bg-primary)',
+                cursor: 'pointer',
+              }}>
                 See Your Results →
               </button>
             </div>

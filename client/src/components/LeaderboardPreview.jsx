@@ -1,14 +1,50 @@
-import { REGIONS } from '../data/regions';
-import { getLeaderboard } from '../utils/storage';
+import { useEffect, useState } from 'react'
+import { getLeaderboard } from '../utils/storage'
+import { REGIONS } from '../data/regions'
+
+const DEMO_ENTRIES = [
+  { id: '1', username: 'marcus_t',  region: 'tokyo',   role: 'Software Engineer', overall: 94 },
+  { id: '2', username: 'amara_o',   region: 'london',  role: 'Product Manager',   overall: 91 },
+  { id: '3', username: 'preethi_r', region: 'mumbai',  role: 'Data Scientist',    overall: 88 },
+  { id: '4', username: 'diego_m',   region: 'dubai',   role: 'Finance Analyst',   overall: 85 },
+  { id: '5', username: 'jordan_k',  region: 'newyork', role: 'Biz Development',   overall: 82 },
+]
+
+const medals = ['🥇', '🥈', '🥉']
 
 export default function LeaderboardPreview() {
-  const entries = getLeaderboard().slice(0, 5);
+  const [entries, setEntries] = useState([])
 
-  if (entries.length === 0) {
-    return (
-      <div className="leaderboard-preview glass">
-        <h3 className="lb-preview-title">🏆 Leaderboard</h3>
-        <p className="lb-empty">No scores yet — be the first!</p>
+  useEffect(() => {
+    const real = getLeaderboard().slice(0, 5)
+    setEntries(real.length > 0 ? real : DEMO_ENTRIES)
+  }, [])
+
+  return (
+    <div style={{
+      background: 'rgba(5,21,37,0.85)',
+      border: '1px solid var(--cyan-border)',
+      borderRadius: 'var(--radius-lg)',
+      backdropFilter: 'blur(20px)',
+      padding: '14px',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '10px',
+    }}>
+      <div style={{
+        display: 'flex', alignItems: 'center',
+        justifyContent: 'space-between',
+      }}>
+        <div style={{
+          fontFamily: 'var(--font-display)', fontWeight: 600,
+          fontSize: '13px', color: 'var(--text-secondary)',
+          display: 'flex', alignItems: 'center', gap: '6px',
+        }}>
+          🏆 <span>Top Scores</span>
+        </div>
+        <span style={{ fontSize: '10px', color: 'var(--text-muted)', letterSpacing: '1px' }}>
+          GLOBAL
+        </span>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
@@ -29,25 +65,18 @@ export default function LeaderboardPreview() {
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{
                 fontSize: '12px', fontWeight: 500,
-                color: 'var(--text-primary)',
-                fontFamily: 'var(--font-ui)',
+                color: 'var(--text-primary)', fontFamily: 'var(--font-ui)',
                 whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-              }}>
-                {e.username}
-              </div>
+              }}>{e.username}</div>
               <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
                 {e.role || REGIONS[e.region]?.name}
               </div>
             </div>
             <span style={{
-              fontFamily: 'var(--font-display)',
-              fontWeight: 700, fontSize: '14px',
+              fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '14px',
               color: e.overall >= 90 ? 'var(--score-high)'
-                   : e.overall >= 75 ? 'var(--cyan)'
-                   : 'var(--score-mid)',
-            }}>
-              {e.overall}
-            </span>
+                : e.overall >= 75 ? 'var(--cyan)' : 'var(--score-mid)',
+            }}>{e.overall}</span>
           </div>
         ))}
       </div>
