@@ -1,54 +1,24 @@
-import { useEffect, useState } from 'react'
-import styles from '../styles/StatBar.module.css'
-
-function scoreColor(s) {
-  if (s >= 75) return 'var(--score-high)'
-  if (s >= 45) return 'var(--score-mid)'
-  return 'var(--score-low)'
-}
-
-export default function StatBar({ label, score, feedback, index }) {
-  const [width, setWidth] = useState(0)
-  const [count, setCount] = useState(0)
-  const color = scoreColor(score)
-
-  useEffect(() => {
-    const t1 = setTimeout(() => setWidth(score), 200 + index * 120)
-    const t2 = setTimeout(() => {
-      let c = 0
-      const increment = score / 40
-      const iv = setInterval(() => {
-        c = Math.min(c + increment, score)
-        setCount(Math.round(c))
-        if (c >= score) clearInterval(iv)
-      }, 15)
-      return () => clearInterval(iv)
-    }, 200 + index * 120)
-    return () => { clearTimeout(t1); clearTimeout(t2) }
-  }, [score, index])
+export default function StatBar({ label, score, animated }) {
+  const color =
+    score >= 85 ? 'linear-gradient(90deg,#00d4ff,#22c55e)' :
+    score >= 70 ? 'linear-gradient(90deg,#00d4ff,#7c3aed)' :
+    'linear-gradient(90deg,#f59e0b,#ef4444)';
 
   return (
-    <div
-      className={styles.container}
-      style={{ animationDelay: `${index * 0.1}s` }}
-    >
-      <div className={styles.header}>
-        <span className={styles.label}>{label.toUpperCase()}</span>
-        <span className={styles.score} style={{ color, textShadow: `0 0 20px ${color}66` }}>
-          {count}
-        </span>
-      </div>
-      <div className={styles.track}>
+    <div className="stat-row">
+      <span className="stat-label">{label}</span>
+      <div className="stat-bar-track">
         <div
-          className={styles.fill}
+          className="stat-bar-fill"
           style={{
-            width: `${width}%`,
+            width: animated ? `${score}%` : '0%',
             background: color,
-            boxShadow: `0 0 12px ${color}88`,
           }}
         />
       </div>
-      <p className={styles.feedback}>{feedback}</p>
+      <span className="stat-score" style={{ color: score >= 85 ? '#22c55e' : score >= 70 ? '#00d4ff' : '#f59e0b' }}>
+        {score}
+      </span>
     </div>
-  )
+  );
 }

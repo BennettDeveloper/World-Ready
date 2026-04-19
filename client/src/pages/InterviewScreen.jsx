@@ -1,186 +1,217 @@
-import { useState, useRef, useEffect } from 'react'
-import FillerCounter from '../components/FillerCounter'
-import styles from '../styles/InterviewScreen.module.css'
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import Timer from '../components/Timer';
+import { REGIONS } from '../data/regions';
+import { getPendingSession, clearPendingSession } from '../utils/storage';
+import { DIFFICULTY_SECONDS } from '../components/DifficultySelector';
+import { isGibberish } from '../utils/validation';
 
-const CATEGORIES = [
-  'Confidence', 'Filler Control', 'Answer Structure',
-  'Cultural Alignment', 'Follow-up Handling',
-]
+export default function InterviewScreen({ onComplete }) {
+  const navigate = useNavigate();
+  const config = getPendingSession();
 
-export default function InterviewScreen({
-  region, role, persona, messages,
-  questionNum, loading, error,
-  onSubmitAnswer,
-}) {
-  const [draft, setDraft] = useState('')
-  const chatRef = useRef(null)
-  const textareaRef = useRef(null)
+  const [messages, setMessages] = useState([]);
+  const [draft, setDraft] = useState('');
+  const [qIndex, setQIndex] = useState(0);
+  const [answerCount, setAnswerCount] = useState(0);
+  const [isComplete, setIsComplete] = useState(false);
+  const [answers, setAnswers] = useState([]);
+  const [timerKey, setTimerKey] = useState(0);
+  const [timerRunning, setTimerRunning] = useState(false);
+  const [repeatCounts, setRepeatCounts] = useState({});
+  const chatRef = useRef(null);
 
-  const isComplete = questionNum > 3 && !loading
-  const interviewerMessages = messages.filter(m => m.from === 'interviewer')
+  const regionData = config ? REGIONS[config.region] : null;
+  const questions = regionData?.questions || [];
+  const timerSeconds = DIFFICULTY_SECONDS[config?.difficulty] || 120;
 
   useEffect(() => {
-    if (chatRef.current) {
-      chatRef.current.scrollTop = chatRef.current.scrollHeight
+    if (!config || !regionData) { navigate('/home'); return; }
+    const greeting = { from: 'interviewer', text: regionData.greeting, isGreeting: true };
+    setMessages([greeting]);
+    const t = setTimeout(() => {
+      setMessages(prev => [...prev, { from: 'interviewer', text: questions[0] }]);
+      setTimerRunning(true);
+    }, 800);
+    return () => clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
+    if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
+  }, [messages]);
+
+  function submitAnswer(text) {
+    const answer = text.trim();
+    if (!answer || isComplete) return;
+
+    setTimerRunning(false);
+    setMessages(prev => [...prev, { from: 'user', text: answer }]);
+    setDraft('');
+
+    // Gibberish check
+    if (isGibberish(answer)) {
+      const currentRepeats = repeatCounts[qIndex] || 0;
+
+      if (currentRepeats < 2) {
+        // In-character gibberish response + repeat question
+        const gibReply = regionData.gibberishResponse || "I\'m sorry, I didn\'t quite follow that. Let me ask again.";
+        setRepeatCounts(prev => ({ ...prev, [qIndex]: currentRepeats + 1 }));
+
+        setTimeout(() => {
+          setMessages(prev => [...prev, { from: 'interviewer', text: gibReply, isGibberish: true }]);
+          setTimeout(() => {
+            setMessages(prev => [...prev, { from: 'interviewer', text: questions[qIndex] }]);
+            setTimerKey(k => k + 1);
+            setTimerRunning(true);
+          }, 700);
+        }, 500);
+        return;
+      } else {
+        // Max repeats reached — move on
+        const moveOn = regionData.moveOnResponse || "Let us continue to the next question.";
+        setTimeout(() => {
+          setMessages(prev => [...prev, { from: 'interviewer', text: moveOn, isTransition: true }]);
+          advanceQuestion(qIndex);
+        }, 500);
+        return;
+      }
     }
-  }, [messages])
 
-  useEffect(() => {
-    if (!loading && textareaRef.current) textareaRef.current.focus()
-  }, [loading])
+    // Valid answer — record and advance
+    const newAnswers = [...answers, answer];
+    setAnswers(newAnswers);
+    setAnswerCount(c => c + 1);
 
-  function handleSubmit() {
-    if (!draft.trim() || loading) return
-    onSubmitAnswer(draft.trim())
-    setDraft('')
+    setTimeout(() => {
+      advanceQuestion(qIndex);
+    }, 500);
   }
 
-  function handleKeyDown(e) {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSubmit()
+  function advanceQuestion(currentQIndex) {
+    const nextQIndex = currentQIndex + 1;
+
+    if (nextQIndex < questions.length) {
+      const transition = regionData.transitions?.[currentQIndex] || 'Thank you. Let us continue.';
+      setMessages(prev => [...prev, { from: 'interviewer', text: transition, isTransition: true }]);
+
+      setTimeout(() => {
+        setMessages(prev => [...prev, { from: 'interviewer', text: questions[nextQIndex] }]);
+        setQIndex(nextQIndex);
+        setTimerKey(k => k + 1);
+        setTimerRunning(true);
+      }, 700);
+    } else {
+      setMessages(prev => [...prev, { from: 'interviewer', text: regionData.closing, isClosing: true }]);
+      setIsComplete(true);
+    }
   }
 
-  const wordCount = draft.trim()
-    ? draft.trim().split(/\s+/).length
-    : 0
+  function handleFinish() {
+    clearPendingSession();
+    onComplete({
+      region: config.region,
+      role: config.role,
+      company: config.company,
+      difficulty: config.difficulty,
+      messages,
+      answers,
+    });
+    navigate('/results');
+  }
+
+  if (!config || !regionData) return null;
 
   return (
-    <div className={styles.page}>
-
-      {/* Top bar */}
-      <header className={styles.topbar}>
-        <div className={styles.logo}>
-          WORLD<span className={styles.logoAccent}>READY</span>
+    <div className="interview-screen">
+      {/* Left panel */}
+      <aside className="interview-left">
+        <div className="persona-card glass-panel">
+          <span className="persona-flag">{regionData.flag}</span>
+          <h3 className="persona-name">{regionData.interviewer}</h3>
+          <p className="persona-title-text">{regionData.title}</p>
+          <span className="style-badge">{regionData.styleTag}</span>
+          <p className="persona-personality">{regionData.personality}</p>
         </div>
 
-        {/* Progress */}
-        <div className={styles.progress}>
-          {[1, 2, 3].map(n => (
-            <div key={n} className={styles.progressStep}>
-              <div className={`${styles.progressDot}
-                ${n < questionNum ? styles.progressDone : ''}
-                ${n === questionNum ? styles.progressActive : ''}
-              `}>
-                {n < questionNum ? '✓' : n}
+        <div className="progress-section">
+          <p className="progress-label">Progress</p>
+          <div className="progress-dots">
+            {questions.map((_, i) => (
+              <div key={i} className={`progress-dot${i < answerCount ? ' done' : i === qIndex && !isComplete ? ' active' : ''}`}>
+                Q{i + 1}
               </div>
-              {n < 3 && (
-                <div className={`${styles.progressLine}
-                  ${n < questionNum ? styles.progressLineDone : ''}
-                `} />
+            ))}
+          </div>
+        </div>
+
+        {!isComplete && timerRunning && (
+          <div className="timer-section">
+            <p className="progress-label">Time Remaining</p>
+            <Timer key={timerKey} seconds={timerSeconds} running={timerRunning}
+              onExpire={() => submitAnswer(draft || '[No answer — time expired]')} />
+          </div>
+        )}
+
+        <div className="interview-meta">
+          <span className="meta-tag">{config.role}</span>
+          {config.company && <span className="meta-tag">{config.company}</span>}
+          <span className={`meta-tag diff-${config.difficulty}`}>{config.difficulty}</span>
+        </div>
+
+        <div className="personality-traits">
+          {regionData.personalityTraits?.map(t => (
+            <span key={t} className="trait-pill">{t}</span>
+          ))}
+        </div>
+      </aside>
+
+      {/* Right: chat */}
+      <div className="interview-right">
+        <div className="chat-header">
+          <span className="chat-flag">{regionData.flag}</span>
+          <div>
+            <span className="chat-title">{regionData.name} Interview</span>
+            <span className="chat-sub"> — {config.role}{config.company ? ` at ${config.company}` : ''}</span>
+          </div>
+        </div>
+
+        <div className="chat-bubbles" ref={chatRef}>
+          {messages.map((msg, i) => (
+            <div key={i} className={`bubble ${msg.from}${msg.isGreeting ? ' greeting' : ''}${msg.isTransition ? ' transition' : ''}${msg.isClosing ? ' closing' : ''}${msg.isGibberish ? ' gibberish-warning' : ''}`}>
+              {msg.from === 'interviewer' && (
+                <span className="bubble-avatar">{regionData.flag}</span>
               )}
+              <span className="bubble-text">{msg.text}</span>
             </div>
           ))}
         </div>
 
-        <div className={styles.roleBadge}>
-          {role} · {region?.label}
-        </div>
-      </header>
-
-      {/* Main */}
-      <main className={styles.main}>
-
-        {/* Left — Persona */}
-        <aside className={styles.persona}>
-          <div className={styles.personaAvatar}>
-            {region?.flag}
+        {isComplete ? (
+          <div className="answer-area">
+            <button className="btn-primary" onClick={handleFinish}>
+              See Your Results →
+            </button>
           </div>
-          <div className={styles.personaName}>
-            {persona?.name || region?.interviewer}
-          </div>
-          <div className={styles.personaTitle}>
-            {persona?.title || region?.title}
-          </div>
-          <div className={styles.personaTag}>
-            {region?.styleTag}
-          </div>
-          <p className={styles.personaStyle}>
-            {persona?.style || region?.style}
-          </p>
-
-          <div className={styles.personaStatus}>
-            <div className={`${styles.statusDot} ${loading ? styles.statusLoading : styles.statusListening}`} />
-            <span>{loading ? 'Thinking...' : 'Listening'}</span>
-          </div>
-
-          <div className={styles.personaDivider} />
-
-          <div className={styles.personaExpects}>
-            <div className={styles.personaExpectsLabel}>EVALUATING</div>
-            {CATEGORIES.map(cat => (
-              <div key={cat} className={styles.personaExpectsItem}>
-                <div className={styles.personaExpectsDot} />
-                {cat}
-              </div>
-            ))}
-          </div>
-        </aside>
-
-        {/* Right — Chat */}
-        <div className={styles.chat}>
-          <div className={styles.chatMessages} ref={chatRef}>
-            {messages.map((msg, i) => (
-              <div
-                key={i}
-                className={`${styles.bubble}
-                  ${msg.from === 'interviewer' ? styles.bubbleInterviewer : styles.bubbleUser}
-                `}
-              >
-                {msg.from === 'interviewer' && (
-                  <div className={styles.bubbleAvatar}>{region?.flag}</div>
-                )}
-                <div className={`${styles.bubbleText}
-                  ${msg.from === 'interviewer' ? styles.bubbleTextInterviewer : styles.bubbleTextUser}
-                `}>
-                  {msg.text}
-                </div>
-              </div>
-            ))}
-
-            {loading && (
-              <div className={`${styles.bubble} ${styles.bubbleInterviewer}`}>
-                <div className={styles.bubbleAvatar}>{region?.flag}</div>
-                <div className={`${styles.bubbleText} ${styles.bubbleTextInterviewer}`}>
-                  <span className={styles.typingDot} />
-                  <span className={styles.typingDot} />
-                  <span className={styles.typingDot} />
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Answer area */}
-          {!isComplete && (
-            <div className={styles.answerArea}>
-              <textarea
-                ref={textareaRef}
-                className={styles.answerInput}
-                value={draft}
-                onChange={e => setDraft(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Type your answer here... (Ctrl+Enter to submit)"
-                rows={4}
-                disabled={loading}
-              />
-              <div className={styles.answerMeta}>
-                <div className={styles.answerMetaLeft}>
-                  <FillerCounter text={draft} />
-                  <span className={styles.wordCount}>
-                    {wordCount > 0 ? `${wordCount} words` : ''}
-                  </span>
-                </div>
-                {error && <span className={styles.error}>{error}</span>}
-                <button
-                  className={`${styles.submitBtn} ${draft.trim() && !loading ? styles.submitBtnActive : styles.submitBtnDisabled}`}
-                  onClick={handleSubmit}
-                  disabled={!draft.trim() || loading}
-                >
-                  {loading ? '...' : questionNum >= 3 ? 'Submit + Analyze →' : 'Submit →'}
-                </button>
-              </div>
+        ) : (
+          <div className="answer-area">
+            <textarea className="answer-textarea"
+              placeholder={`Respond to ${regionData.interviewer}… (Cmd/Ctrl + Enter to submit)`}
+              value={draft}
+              onChange={e => setDraft(e.target.value)}
+              onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') submitAnswer(draft); }}
+            />
+            <div className="answer-footer">
+              <span className="answer-hint">Cmd/Ctrl + Enter to submit</span>
+              <button className={`btn-primary${draft.trim() ? '' : ' disabled'}`}
+                onClick={() => submitAnswer(draft)} disabled={!draft.trim()}>
+                Submit Answer
+              </button>
             </div>
-          )}
-        </div>
-      </main>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
+
+export { };
