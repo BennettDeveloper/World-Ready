@@ -211,16 +211,6 @@
 .globe-atmosphere { position: absolute; inset: -2px; border-radius: 50%; box-shadow: 0 0 50px rgba(30,150,220,0.3), inset 0 0 25px rgba(30,100,180,0.1); }
 .globe-glow { position: absolute; inset: -35px; border-radius: 50%; background: radial-gradient(circle, rgba(30,120,200,0.1) 40%, transparent 70%); pointer-events: none; }
 
-/* Globe pins */
-.globe-pin { cursor: pointer; transition: opacity var(--t); }
-.globe-pin:hover { opacity: 0.85; }
-.pin-pulse { animation: pin-ring 2.5s ease-out infinite; }
-@keyframes pin-ring {
-  0% { r: 8; opacity: 0.9; }
-  60% { r: 14; opacity: 0.4; }
-  100% { r: 8; opacity: 0.9; }
-}
-.globe-pin.pin-selected .pin-pulse { stroke: var(--cyan); stroke-width: 2; }
 
 /* ─────────────────────────────────────────
    LANDING PAGE
@@ -605,32 +595,39 @@
 }
 
 /* ─────────────────────────────────────────
-   WORLD MAP (Google Maps)
+   WORLD GLOBE (react-globe.gl)
 ───────────────────────────────────────── */
-.world-map-stage { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
-.world-map-container {
-  width: 580px; height: 520px;
-  border-radius: var(--radius);
-  overflow: hidden;
-  border: 1px solid var(--panel-border);
-  box-shadow: 0 0 60px rgba(0,212,255,0.08), 0 4px 40px rgba(0,0,0,0.5);
+.world-map-stage {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  width: 100%;
 }
 .world-map-hint { font-size: 0.75rem; color: var(--text-3); }
-.gm-style .gm-style-iw-c {
-  background: #111827 !important;
-  border: 1px solid rgba(0,212,255,0.3) !important;
-  border-radius: 12px !important;
-  padding: 0 !important;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.7) !important;
+
+/* Flag pins rendered as HTML elements on the globe */
+.globe-pin {
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px;
+  background: rgba(17,24,39,0.88);
+  border: 1.5px solid rgba(255,255,255,0.35);
+  border-radius: 50%;
+  transition: transform 0.18s, box-shadow 0.18s, border-color 0.18s;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.6);
 }
-.gm-style .gm-style-iw-d { overflow: hidden !important; padding: 0 !important; }
-.gm-style .gm-style-iw-tc::after,
-.gm-style .gm-style-iw-t::after { background: #111827 !important; }
-.gm-style button.gm-ui-hover-effect { opacity: 0.6; filter: invert(1); top: 2px !important; right: 2px !important; }
-.gm-style button.gm-ui-hover-effect:hover { opacity: 1; }
-.gm-bundled-control .gmnoprint { filter: invert(1) hue-rotate(180deg) brightness(0.8); }
-@media (max-width: 1024px) { .world-map-container { width: 100%; max-width: 580px; height: 420px; } }
-@media (max-width: 768px) { .world-map-container { height: 340px; } }
+.globe-pin:hover {
+  transform: scale(1.2);
+  border-color: var(--cyan);
+  box-shadow: 0 0 14px rgba(0,212,255,0.45);
+}
+.globe-pin.selected {
+  width: 46px; height: 46px;
+  border-color: var(--cyan);
+  border-width: 2px;
+  box-shadow: 0 0 0 4px rgba(0,212,255,0.2), 0 0 20px rgba(0,212,255,0.5);
+  transform: scale(1.15);
+}
+.globe-pin-flag { font-size: 1.15rem; line-height: 1; pointer-events: none; }
+.globe-pin.selected .globe-pin-flag { font-size: 1.4rem; }
 
 /* ─────────────────────────────────────────
    REVIEWS PAGE
