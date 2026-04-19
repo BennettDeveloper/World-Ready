@@ -1,127 +1,220 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import Globe from '../components/Globe';
-import DifficultySelector from '../components/DifficultySelector';
-import LeaderboardPreview from '../components/LeaderboardPreview';
-import { REGIONS } from '../data/regions';
-import { setPendingSession } from '../utils/storage';
-import { isValidJobTitle } from '../utils/validation';
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import Globe from '../components/Globe'
+import DifficultySelector from '../components/DifficultySelector'
+import LeaderboardPreview from '../components/LeaderboardPreview'
+import { REGIONS } from '../data/regions'
+import { setPendingSession } from '../utils/storage'
+import { isValidJobTitle } from '../utils/validation'
+import { getCityTimeContext } from '../utils/maps'
 
 export default function LandingPage({ user }) {
-  const [selectedRegion, setSelectedRegion] = useState(null);
-  const [role, setRole] = useState('');
-  const [company, setCompany] = useState('');
-  const [difficulty, setDifficulty] = useState('medium');
-  const [showSetup, setShowSetup] = useState(false);
-  const navigate = useNavigate();
+  const [selectedRegion, setSelectedRegion] = useState(null)
+  const [role, setRole] = useState('')
+  const [company, setCompany] = useState('')
+  const [difficulty, setDifficulty] = useState('medium')
+  const [cityContext, setCityContext] = useState(null)
+  const navigate = useNavigate()
 
-  const canBegin = selectedRegion && isValidJobTitle(role);
-  const region = selectedRegion ? REGIONS[selectedRegion] : null;
+  const canBegin = selectedRegion && isValidJobTitle(role)
+  const region = selectedRegion ? REGIONS[selectedRegion] : null
 
-  function handleSelectRegion(key) {
-    setSelectedRegion(key);
-    setShowSetup(true);
-  }
+  useEffect(() => {
+    if (!selectedRegion || !region) { setCityContext(null); return }
+    getCityTimeContext(region.lat, region.lon, region.name).then(setCityContext)
+  }, [selectedRegion])
+
+  function handleSelectRegion(key) { setSelectedRegion(key) }
 
   function handleBegin() {
-    if (!canBegin) return;
-    setPendingSession({ region: selectedRegion, role: role.trim(), company: company.trim(), difficulty });
-    navigate('/interview');
+    if (!canBegin) return
+    setPendingSession({
+      region: selectedRegion, role: role.trim(),
+      company: company.trim(), difficulty,
+      timeContext: cityContext?.contextString || '',
+    })
+    navigate('/interview')
   }
 
   return (
-    <div className="landing-page">
-      {/* Slogan banner */}
-      <div className="slogan-banner">
-        <span className="slogan-text">
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', position: 'relative', zIndex: 1 }}>
+
+      {/* Slogan */}
+      <div style={{ textAlign: 'center', padding: '12px 24px 0' }}>
+        <span style={{ fontFamily: 'var(--font-ui)', fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
           "In a world where everyone is interview ready, the candidates who stand out will be the ones who are{' '}
-          <span className="slogan-highlight">World-Ready</span>."
+          <span style={{ color: 'var(--cyan)', fontStyle: 'normal', fontWeight: 600 }}>World-Ready</span>."
         </span>
       </div>
 
-      {/* Main layout: globe + side panels */}
-      <div className="landing-layout">
-        {/* Left panel */}
-        <aside className="landing-left-panel">
-          {/* Header */}
-          <div className="panel-section">
-            <h1 className="panel-title">
-              <span className="globe-icon-sm">🌐</span>
+      {/* Main layout */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '300px 1fr 280px',
+        flex: 1,
+        height: 'calc(100vh - 85px)',
+        padding: '12px 24px',
+        maxWidth: '1400px',
+        margin: '0 auto',
+        width: '100%',
+        overflow: 'hidden',
+      }}>
+
+        {/* ── Left panel ── */}
+        <aside style={{
+          display: 'flex', flexDirection: 'column',
+          gap: '12px', overflowY: 'auto', paddingRight: '16px',
+        }}>
+          <div>
+            <h1 style={{
+              fontFamily: 'var(--font-display)', fontWeight: 800,
+              fontSize: '22px', display: 'flex', alignItems: 'center',
+              gap: '8px', marginBottom: '6px',
+            }}>
+              <span>🌐</span>
               <span className="gradient-text">World Ready</span>
             </h1>
-            <p className="panel-sub">
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
               {region
-                ? `You selected ${region.name}. Now configure your session.`
-                : 'Click a pin on the globe to select your interview location.'}
+                ? `You selected ${region.name}. Configure your session.`
+                : 'Click a pin on the globe or select a room on the right.'}
             </p>
           </div>
 
           {/* Selected region card */}
           {region && (
-            <div className="selected-region-card glass-panel">
-              <div className="src-top">
-                <span className="src-flag">{region.flag}</span>
-                <div>
-                  <div className="src-name">{region.name}</div>
-                  <div className="src-interviewer">{region.interviewer}</div>
-                  <div className="src-title">{region.title}</div>
+            <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                <span style={{ fontSize: '24px' }}>{region.flag}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '15px', color: 'var(--text-primary)' }}>{region.name}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--cyan)', fontWeight: 500 }}>{region.interviewer}</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{region.title}</div>
                 </div>
-                <button className="src-clear" onClick={() => { setSelectedRegion(null); setShowSetup(false); }} title="Change region">✕</button>
+                <button
+                  onClick={() => { setSelectedRegion(null); setCityContext(null) }}
+                  style={{
+                    background: 'transparent', border: '1px solid var(--cyan-border)',
+                    color: 'var(--text-muted)', width: '22px', height: '22px',
+                    borderRadius: '50%', cursor: 'pointer', fontSize: '11px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}
+                >✕</button>
               </div>
-              <span className="style-badge">{region.styleTag}</span>
-              <p className="src-desc">{region.styleDesc}</p>
-              <div className="personality-traits">
+
+              <span style={{
+                display: 'inline-block', padding: '2px 10px',
+                background: 'rgba(0,210,255,0.08)', border: '1px solid var(--cyan-border)',
+                borderRadius: '999px', fontSize: '10px', color: 'var(--cyan)',
+                letterSpacing: '1px', fontFamily: 'var(--font-display)',
+              }}>{region.styleTag}</span>
+
+              <p style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>{region.styleDesc}</p>
+
+              {cityContext?.timeStr && (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '8px',
+                  padding: '6px 10px',
+                  background: 'rgba(0,210,255,0.06)',
+                  border: '1px solid var(--cyan-border)',
+                  borderRadius: 'var(--radius-sm)',
+                }}>
+                  <div style={{
+                    width: '6px', height: '6px', borderRadius: '50%',
+                    background: 'var(--cyan-glow)',
+                    boxShadow: '0 0 6px var(--cyan-glow)',
+                    animation: 'pulse 2s infinite', flexShrink: 0,
+                  }} />
+                  <span style={{
+                    fontSize: '11px', color: 'var(--cyan)',
+                    fontFamily: 'var(--font-display)', letterSpacing: '1px',
+                  }}>
+                    {cityContext.timeStr} · {cityContext.timezone}
+                  </span>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
                 {region.personalityTraits?.map(t => (
-                  <span key={t} className="trait-pill">{t}</span>
+                  <span key={t} style={{
+                    padding: '2px 8px',
+                    background: 'rgba(196,114,240,0.08)',
+                    border: '1px solid var(--violet-border)',
+                    borderRadius: '999px', fontSize: '10px', color: 'var(--violet)',
+                  }}>{t}</span>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Region grid fallback if no pin clicked */}
-          {!region && (
-            <div className="region-grid-compact">
-              {Object.entries(REGIONS).map(([key, r]) => (
-                <button
-                  key={key}
-                  className={`region-chip${selectedRegion === key ? ' selected' : ''}`}
-                  onClick={() => handleSelectRegion(key)}
-                  type="button"
-                >
-                  <span>{r.flag}</span>
-                  <span>{r.name}</span>
-                </button>
-              ))}
-            </div>
-          )}
+          {/* Setup form — only when region selected */}
+          {region && (
+            <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{
+                  fontSize: '11px', color: 'var(--text-muted)',
+                  letterSpacing: '2px', textTransform: 'uppercase',
+                  fontFamily: 'var(--font-display)',
+                }}>Job Title *</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Software Engineer…"
+                  value={role}
+                  onChange={e => setRole(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleBegin()}
+                  autoFocus
+                  style={{
+                    background: 'rgba(0,210,255,0.04)',
+                    border: '1px solid var(--cyan-border)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '10px 14px',
+                    color: 'var(--text-primary)', fontSize: '14px',
+                  }}
+                />
+              </div>
 
-          {/* Setup form */}
-          {showSetup && region && (
-            <div className="setup-form glass-panel">
-              <div className="form-group">
-                <label className="form-label" htmlFor="role">Job Title *</label>
-                <input id="role" type="text" className="form-input"
-                  placeholder="e.g. Software Engineer, Product Manager…"
-                  value={role} onChange={e => setRole(e.target.value)} autoFocus />
-              </div>
-              <div className="form-group">
-                <label className="form-label" htmlFor="company">
-                  Target Company <span className="optional">(optional)</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{
+                  fontSize: '11px', color: 'var(--text-muted)',
+                  letterSpacing: '2px', textTransform: 'uppercase',
+                  fontFamily: 'var(--font-display)',
+                }}>
+                  Target Company{' '}
+                  <span style={{ fontStyle: 'italic', textTransform: 'none' }}>(optional)</span>
                 </label>
-                <input id="company" type="text" className="form-input"
+                <input
+                  type="text"
                   placeholder="e.g. Google, Deloitte…"
-                  value={company} onChange={e => setCompany(e.target.value)} />
+                  value={company}
+                  onChange={e => setCompany(e.target.value)}
+                  style={{
+                    background: 'rgba(0,210,255,0.04)',
+                    border: '1px solid var(--cyan-border)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '10px 14px',
+                    color: 'var(--text-primary)', fontSize: '14px',
+                  }}
+                />
               </div>
+
               <DifficultySelector value={difficulty} onChange={setDifficulty} />
+
               <button
-                className={`begin-btn${canBegin ? ' active' : ' disabled'}`}
                 onClick={handleBegin}
                 disabled={!canBegin}
-                type="button"
+                style={{
+                  width: '100%', padding: '13px',
+                  borderRadius: 'var(--radius-md)',
+                  fontFamily: 'var(--font-display)', fontWeight: 700,
+                  fontSize: '14px', letterSpacing: '2px',
+                  textTransform: 'uppercase', border: 'none',
+                  cursor: canBegin ? 'pointer' : 'not-allowed',
+                  background: canBegin ? 'var(--cyan)' : 'var(--bg-secondary)',
+                  color: canBegin ? 'var(--bg-primary)' : 'var(--text-muted)',
+                  transition: 'all var(--transition-normal)',
+                }}
               >
-                {canBegin
-                  ? `Enter ${region.name} ${region.flag}`
-                  : 'Enter your job title to begin'}
+                {canBegin ? `Enter ${region.name} ${region.flag}` : 'Enter your job title to begin'}
               </button>
             </div>
           )}
@@ -129,45 +222,106 @@ export default function LandingPage({ user }) {
           <LeaderboardPreview />
         </aside>
 
-        {/* Globe */}
-        <div className="globe-stage">
-          <Globe size={580} selectedRegion={selectedRegion} onSelectRegion={handleSelectRegion} />
-          <p className="globe-hint">Click a pin to select your interview room</p>
+        {/* ── Globe center ── */}
+        <div style={{
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+        }}>
+          <Globe
+            size={500}
+            selectedRegion={selectedRegion}
+            onSelectRegion={handleSelectRegion}
+          />
+          <p style={{
+            marginTop: '12px', fontSize: '11px',
+            color: 'var(--text-muted)', letterSpacing: '1px', fontStyle: 'italic',
+          }}>
+            Click a pin to select your interview room
+          </p>
         </div>
 
-        {/* Right panel */}
-        <aside className="landing-right-panel">
+        {/* ── Right panel ── */}
+        <aside style={{
+          display: 'flex', flexDirection: 'column',
+          gap: '16px', paddingLeft: '16px', overflowY: 'auto',
+        }}>
           {user && (
-            <div className="welcome-card glass-panel">
-              <div className="wc-top">
-                <span className="welcome-avatar">{user.name?.[0]?.toUpperCase()}</span>
+            <div className="glass-panel">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                  width: '44px', height: '44px', borderRadius: '50%',
+                  background: 'linear-gradient(135deg, var(--cyan), var(--violet))',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontFamily: 'var(--font-display)', fontWeight: 700,
+                  fontSize: '18px', color: 'var(--bg-primary)',
+                }}>
+                  {user.name?.[0]?.toUpperCase()}
+                </div>
                 <div>
-                  <div className="welcome-name">{user.name?.split(' ')[0]}</div>
-                  <div className="welcome-role">Ready to practice</div>
+                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '15px' }}>
+                    {user.name?.split(' ')[0]}
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Ready to practice</div>
                 </div>
               </div>
             </div>
           )}
 
-          <div className="regions-overview glass-panel">
-            <h3 className="panel-section-title">Interview Rooms</h3>
+          <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <h3 style={{
+              fontFamily: 'var(--font-display)', fontSize: '11px',
+              fontWeight: 600, letterSpacing: '3px',
+              color: 'var(--text-muted)', textTransform: 'uppercase',
+              marginBottom: '8px',
+            }}>
+              Interview Rooms
+            </h3>
             {Object.entries(REGIONS).map(([key, r]) => (
               <button
                 key={key}
-                className={`region-row${selectedRegion === key ? ' selected' : ''}`}
                 onClick={() => handleSelectRegion(key)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '10px',
+                  background: selectedRegion === key ? 'rgba(0,210,255,0.08)' : 'transparent',
+                  border: `1px solid ${selectedRegion === key ? 'var(--cyan)' : 'transparent'}`,
+                  borderRadius: 'var(--radius-sm)', padding: '9px 10px',
+                  cursor: 'pointer', width: '100%', textAlign: 'left',
+                  transition: 'all var(--transition-fast)',
+                }}
+                onMouseEnter={e => {
+                  if (selectedRegion !== key) {
+                    e.currentTarget.style.background = 'rgba(0,210,255,0.05)'
+                    e.currentTarget.style.borderColor = 'var(--cyan-border)'
+                  }
+                }}
+                onMouseLeave={e => {
+                  if (selectedRegion !== key) {
+                    e.currentTarget.style.background = 'transparent'
+                    e.currentTarget.style.borderColor = 'transparent'
+                  }
+                }}
               >
-                <span className="rr-flag">{r.flag}</span>
-                <div className="rr-info">
-                  <span className="rr-name">{r.name}</span>
-                  <span className="rr-style">{r.styleTag}</span>
+                <span style={{ fontSize: '18px' }}>{r.flag}</span>
+                <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                  <span style={{
+                    fontSize: '13px', fontWeight: 500,
+                    color: selectedRegion === key ? 'var(--cyan)' : 'var(--text-primary)',
+                    fontFamily: 'var(--font-ui)',
+                  }}>{r.name}</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{r.styleTag}</span>
                 </div>
-                <span className="rr-arrow">→</span>
+                <span style={{ fontSize: '14px', color: 'var(--cyan)', opacity: 0.6 }}>→</span>
               </button>
             ))}
           </div>
         </aside>
       </div>
+
+      <style>{`
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+        input:focus { border-color: var(--cyan) !important; outline: none; box-shadow: 0 0 0 1px rgba(0,210,255,0.15); }
+        input::placeholder { color: var(--text-muted); }
+      `}</style>
     </div>
   )
 }

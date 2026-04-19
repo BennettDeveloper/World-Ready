@@ -12,7 +12,7 @@
   inset: 0;
   background-image:
     linear-gradient(var(--grid-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    linear-gradient(9a0deg, var(--grid-line) 1px, transparent 1px);
   background-size: 60px 60px;
   opacity: 0.2;
   pointer-events: none;
