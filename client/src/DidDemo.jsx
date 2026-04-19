@@ -1,72 +1,96 @@
 import { useEffect, useRef, useState } from 'react'
-import { useDidStream } from './useDidStream'
+import { useDidAgent } from './useDidAgent'
+import { createAgentManager, AgentActivityState, ConnectionState } from '@d-id/client-sdk'
 
-// Silence window before flushing a voice turn to the backend
 const SUBMIT_DEBOUNCE_MS = 1200
 
 export default function DidDemo() {
   // ── Refs ──────────────────────────────────────────────────────────────────
-  const localVideoRef = useRef(null)
-  const avatarVideoRef = useRef(null)
-  const mediaStreamRef = useRef(null)
-  const recognitionRef = useRef(null)
-  const sessionActiveRef = useRef(false)
-  const isRespondingRef = useRef(false)
-  const transcriptEndRef = useRef(null)
-  const pendingTextRef = useRef('')
-  const latestInterimRef = useRef('')
-  const debounceTimerRef = useRef(null)
+  const localVideoRef          = useRef(null)
+  const mediaStreamRef         = useRef(null)
+  const recognitionRef         = useRef(null)
+  const sessionActiveRef       = useRef(false)
+  const isRespondingRef        = useRef(false)
+  const transcriptEndRef       = useRef(null)
+  const pendingTextRef         = useRef('')
+  const latestInterimRef       = useRef('')
+  const debounceTimerRef       = useRef(null)
   const isRecognitionActiveRef = useRef(false)
-  const speechErrorRef = useRef(null)
-  const sessionIdRef = useRef(null)
+  const ignoreRecognitionRef    = useRef(false)   // hard gate: true from halt→onstart
+  const awaitingAgentTurnRef    = useRef(false)   // true: msg sent, agent not yet speaking
+  const agentResponseTimeoutRef = useRef(null)    // fallback: release gate if agent never speaks
+  const speechErrorRef          = useRef(null)
+  const sessionIdRef            = useRef(null)
+  const recognitionGenerationRef = useRef(0)   // incremented on every start+halt; closures discard stale events
+  const pttActiveRef             = useRef(false)  // true while Push-to-Speak is recording
 
   // ── State ─────────────────────────────────────────────────────────────────
-  const [cameraOn, setCameraOn] = useState(false)
-  const [micOn, setMicOn] = useState(false)
+  const [cameraOn,      setCameraOn]      = useState(false)
+  const [micOn,         setMicOn]         = useState(false)
   const [sessionActive, setSessionActive] = useState(false)
-  const [isResponding, setIsResponding] = useState(false)
+  const [isResponding,  setIsResponding]  = useState(false)
   const [speechBlocked, setSpeechBlocked] = useState(false)
-  const [status, setStatus] = useState('idle')
+  const [pttActive,     setPttActive]     = useState(false)
+  const [status,        setStatus]        = useState('idle')
   const [transcriptLog, setTranscriptLog] = useState([])
-  const [interimText, setInterimText] = useState('')
-  const [manualInput, setManualInput] = useState('')
+  const [interimText,   setInterimText]   = useState('')
+  const [manualInput,   setManualInput]   = useState('')
   const [avatarMessage, setAvatarMessage] = useState('')
-  const [avatarVideoUrl, setAvatarVideoUrl] = useState('')
 
   // Interview setup
-  const [roleType, setRoleType] = useState('Software Engineer')
-  const [persona, setPersona] = useState('US Startup Recruiter')
-  const [difficulty, setDifficulty] = useState('Medium')
-  const [jobDescription, setJobDescription] = useState('')
-  const [resumeContext, setResumeContext] = useState('')
+  const [roleType,        setRoleType]        = useState('Software Engineer')
+  const [persona,         setPersona]         = useState('US Startup Recruiter')
+  const [difficulty,      setDifficulty]      = useState('Medium')
+  const [jobDescription,  setJobDescription]  = useState('')
+  const [resumeContext,   setResumeContext]    = useState('')
 
   // Session persistence + results
-  const [pastSessions, setPastSessions] = useState([])
-  const [showHistory, setShowHistory] = useState(false)
+  const [pastSessions,    setPastSessions]    = useState([])
+  const [showHistory,     setShowHistory]     = useState(false)
   const [expandedSession, setExpandedSession] = useState(null)
-  const [lastResult, setLastResult] = useState(null)
+  const [lastResult,      setLastResult]      = useState(null)
 
-  // ── Realtime streaming avatar ─────────────────────────────────────────────
+   const [agentActivity, setAgentActivity] = useState(AgentActivityState.Idle)
+
+  // ── Agent message handler ─────────────────────────────────────────────────
+  // Called by useDidAgent when the agent delivers an answer (type='answer').
+  // Defined before the hook so it can be passed as a stable prop.
+  function handleAgentMessage(replyText) {
+    console.log('[handleAgentMessage] fired — text:', replyText?.slice(0, 80), '| sessionId:', sessionIdRef.current)
+    if (!replyText) return
+    setAvatarMessage(replyText)
+    appendTranscript('interviewer', replyText)
+    if (sessionIdRef.current) {
+      saveMessageToSession(sessionIdRef.current, 'assistant', replyText)
+    }
+  }
+
+  // ── D-ID Agent SDK ────────────────────────────────────────────────────────
   const {
-    streamState,
-    streamStateRef,
-    videoRef: streamVideoRef,
-    connect: connectStream,
-    speak: streamSpeak,
-    disconnect: disconnectStream,
-  } = useDidStream()
+    agentState,
+    isAgentTalking,
+    isAgentTalkingRef,
+    videoRef: agentVideoRef,
+    connect:    connectAgent,
+    whenReady:  agentWhenReady,
+    chat:       agentChat,
+    disconnect: disconnectAgent,
+  } = useDidAgent({ onAgentMessage: handleAgentMessage })
+
+  // Tracks whether the agent was actively speaking during the last agent turn.
+  // Used by the turn-taking effect to decide if a post-speech cleanup delay is needed.
+  const agentWasSpeakingRef = useRef(false)
+  // Delayed-resume timer: fired 400ms after agent finishes speaking to let audio tail off
+  const resumeTimerRef = useRef(null)
 
   // ── Effects ───────────────────────────────────────────────────────────────
 
-  // Pre-warm: start the D-ID stream as soon as the page loads so the avatar is
-  // already live when the user clicks Start.
-  //
-  // The setTimeout + clearTimeout pattern is Strict Mode safe: React's simulated
-  // unmount clears the timer before it fires, so only the real mount ever creates
-  // a stream. The hook's own connectingRef guard blocks any further duplicates.
+  // Pre-warm: establish the agent connection as soon as the page loads.
+  // setTimeout(0)+clearTimeout is Strict Mode safe — React's simulated unmount
+  // clears the timer, so only the real mount fires connectAgent().
   useEffect(() => {
     const timer = setTimeout(() => {
-      connectStream().catch(() => {})
+      connectAgent().catch(() => {})
     }, 0)
     return () => clearTimeout(timer)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -78,37 +102,72 @@ export default function DidDemo() {
   }, [transcriptLog])
 
   // ── Turn-taking: mute mic while interviewer is speaking ───────────────────
-  // isAgentTurn = true while Claude is thinking (isResponding) OR the avatar
-  // is actively speaking (streamState === 'speaking').
-  // When the agent's turn ends, mic is resumed automatically if the user had
-  // it enabled — pauseRecognition() preserves micOn so this is safe.
-  const isAgentSpeaking = streamState === 'speaking'
+  const isAgentSpeaking = isAgentTalking
   const isAgentTurn     = isAgentSpeaking || isResponding
 
   useEffect(() => {
     if (!sessionActive) return
 
     if (isAgentTurn) {
+      // Cancel any pending delayed resume — agent has the floor
+      clearTimeout(resumeTimerRef.current)
+      if (pttActiveRef.current) {
+        pttActiveRef.current = false
+        setPttActive(false)
+      }
       if (isRecognitionActiveRef.current) {
         console.log('[turn] agent turn — pausing mic (speaking:', isAgentSpeaking, ')')
         pauseRecognition()
       }
-      if (isAgentSpeaking) setStatus('Interviewer speaking…')
-    } else {
-      // User's turn: resume only if they haven't explicitly disabled mic
-      if (micOn && !speechBlocked && !isRecognitionActiveRef.current) {
-        console.log('[turn] user turn — resuming mic')
-        startMicRecognition()
+      if (isAgentSpeaking) {
+        // Agent has ACTUALLY started speaking — clear the "awaiting response" hold.
+        // Until this fires, the mic is intentionally kept off after agentChat() resolved.
+        awaitingAgentTurnRef.current = false
+        clearTimeout(agentResponseTimeoutRef.current)
+        agentWasSpeakingRef.current = true
+        console.log('[turn] agent speaking confirmed — awaiting flag cleared, gate remains closed')
+        setStatus('Interviewer speaking…')
       }
+    } else {
+      const needsCleanup = agentWasSpeakingRef.current
+      agentWasSpeakingRef.current = false
+      clearTimeout(resumeTimerRef.current)
+
+      // agentChat() resolved but agent hasn't started speaking yet.
+      // Holding mic off — this effect will re-fire when isAgentSpeaking becomes true.
+      if (awaitingAgentTurnRef.current) {
+        console.log('[turn] awaiting agent response — mic held off, gate closed')
+        return
+      }
+
+      if (needsCleanup) setStatus('Your turn…')
+
+      resumeTimerRef.current = setTimeout(() => {
+        // Scrub any contamination accumulated during/after agent speech
+        clearTimeout(debounceTimerRef.current)
+        pendingTextRef.current   = ''
+        latestInterimRef.current = ''
+        setInterimText('')
+        if (needsCleanup) console.log('[speech] buffers cleared after agent speech')
+
+        if (micOn && !speechBlocked && !isRecognitionActiveRef.current && !isAgentTalkingRef.current) {
+          if (needsCleanup) console.log('[speech] recognition restarted cleanly')
+          else console.log('[turn] user turn — resuming mic')
+          startMicRecognition()
+        }
+      }, needsCleanup ? 400 : 0)
     }
   }, [isAgentTurn, isAgentSpeaking, sessionActive, micOn, speechBlocked]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     return () => {
-      sessionActiveRef.current = false
+      sessionActiveRef.current       = false
       isRecognitionActiveRef.current = false
+      awaitingAgentTurnRef.current   = false
       clearTimeout(debounceTimerRef.current)
-      pendingTextRef.current = ''
+      clearTimeout(resumeTimerRef.current)
+      clearTimeout(agentResponseTimeoutRef.current)
+      pendingTextRef.current   = ''
       latestInterimRef.current = ''
       if (recognitionRef.current) {
         recognitionRef.current.onend = null
@@ -149,23 +208,46 @@ export default function DidDemo() {
     if (!SR) { setStatus('speech recognition not supported — use text input below'); return }
 
     speechErrorRef.current = null
+    // Each new recognition session gets a unique generation number captured
+    // in the handler closures.  _haltRecognitionEngine() increments the counter,
+    // making every in-flight handler from the old session see a stale generation
+    // and discard itself — no need to null handlers manually.
+    const gen = ++recognitionGenerationRef.current
     const rec = new SR()
     rec.lang = 'en-US'
     rec.interimResults = true
     rec.continuous = true
 
     rec.onstart = () => {
-      console.log('[speech] started')
+      if (gen !== recognitionGenerationRef.current) return  // stale session
+      // Always open the gate on a fresh onstart.  The resume timer only calls
+      // startMicRecognition() when it is actually safe to do so (agent done,
+      // buffers clear), so ignoreRecognitionRef being true here just means
+      // the previous session was halted — exactly when we want to re-open.
+      ignoreRecognitionRef.current = false
       isRecognitionActiveRef.current = true
+      console.log('[speech] started — gate OPEN gen:', gen)
       setStatus('listening')
     }
 
     rec.onend = () => {
+      if (gen !== recognitionGenerationRef.current) return  // stale session
       isRecognitionActiveRef.current = false
-      console.log('[speech] ended | session:', sessionActiveRef.current, '| error:', speechErrorRef.current)
-      if (recognitionRef.current !== rec) return
+      console.log('[speech] ended | session:', sessionActiveRef.current,
+        '| error:', speechErrorRef.current,
+        '| agentTalking:', isAgentTalkingRef.current,
+        '| gated:', ignoreRecognitionRef.current,
+        '| gen:', gen)
       const fatalErrors = ['not-allowed', 'service-not-allowed']
-      if (sessionActiveRef.current && !fatalErrors.includes(speechErrorRef.current)) {
+      // Auto-restart only when it is safe: session live, agent not speaking,
+      // gate open, not awaiting response, no fatal mic error.
+      if (
+        sessionActiveRef.current &&
+        !isAgentTalkingRef.current &&
+        !ignoreRecognitionRef.current &&
+        !awaitingAgentTurnRef.current &&
+        !fatalErrors.includes(speechErrorRef.current)
+      ) {
         try { rec.start() } catch (e) { console.error('[speech] restart failed:', e.message) }
       } else if (!sessionActiveRef.current) {
         setStatus('idle')
@@ -173,12 +255,47 @@ export default function DidDemo() {
     }
 
     rec.onresult = (ev) => {
+      const talking = agentState === AgentActivityState.Talking
+      if(talking) return;
+
+      if (gen !== recognitionGenerationRef.current) {
+        console.log('[speech] stale onresult discarded — gen', gen)
+        return
+      }
+      // Layer 1 — gate: halted engine fired a late final result
+      if (ignoreRecognitionRef.current) {
+        console.log('[speech] discarded — gate closed (late result after halt)')
+        clearTimeout(debounceTimerRef.current)
+        pendingTextRef.current   = ''
+        latestInterimRef.current = ''
+        setInterimText('')
+        return
+      }
+      // Layer 2 — agent is speaking (sync ref, no React delay)
+      if (isAgentTalkingRef.current) {
+        console.log('[speech] discarded — agent speaking')
+        clearTimeout(debounceTimerRef.current)
+        pendingTextRef.current   = ''
+        latestInterimRef.current = ''
+        setInterimText('')
+        return
+      }
+      // Layer 3 — message sent, waiting for agent to start speaking
+      if (awaitingAgentTurnRef.current) {
+        console.log('[speech] discarded — awaiting agent turn')
+        clearTimeout(debounceTimerRef.current)
+        pendingTextRef.current   = ''
+        latestInterimRef.current = ''
+        setInterimText('')
+        return
+      }
+
       const newResults = Array.from(ev.results).slice(ev.resultIndex)
       const finalChunk = newResults.filter(r => r.isFinal).map(r => r[0].transcript).join(' ').trim()
-      const interim = newResults.filter(r => !r.isFinal).map(r => r[0].transcript).join(' ').trim()
+      const interim    = newResults.filter(r => !r.isFinal).map(r => r[0].transcript).join(' ').trim()
 
       if (finalChunk) {
-        pendingTextRef.current = (pendingTextRef.current + ' ' + finalChunk).trim()
+        pendingTextRef.current   = (pendingTextRef.current + ' ' + finalChunk).trim()
         latestInterimRef.current = ''
         setInterimText('')
       } else if (interim) {
@@ -191,17 +308,33 @@ export default function DidDemo() {
         clearTimeout(debounceTimerRef.current)
         setStatus('finishing...')
         debounceTimerRef.current = setTimeout(() => {
+          // Re-check all guards at flush time — state may have changed during 1200ms
+          if (
+            gen !== recognitionGenerationRef.current ||
+            ignoreRecognitionRef.current ||
+            isAgentTalkingRef.current ||
+            awaitingAgentTurnRef.current
+          ) {
+            console.log('[speech] debounce flush discarded — stale or gated')
+            pendingTextRef.current   = ''
+            latestInterimRef.current = ''
+            setInterimText('')
+            return
+          }
+          // PTT mode: suppress auto-submit; user submits by clicking Stop
+          if (pttActiveRef.current) return
           const text = (pendingTextRef.current || latestInterimRef.current).trim()
-          pendingTextRef.current = ''
+          pendingTextRef.current   = ''
           latestInterimRef.current = ''
           setInterimText('')
-          console.log('[speech] flush →', text || '(empty)')
-          if (text) { appendTranscript('user', text); sendToBackend(text) }
+          console.log('[speech] flush → "', text.slice(0, 60), '"')
+          if (text) { appendTranscript('user', text); sendMessageToAgent(text) }
         }, SUBMIT_DEBOUNCE_MS)
       }
     }
 
     rec.onerror = (e) => {
+      if (gen !== recognitionGenerationRef.current) return  // stale session
       console.error('[speech] error:', e.error)
       speechErrorRef.current = e.error
       if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
@@ -213,187 +346,200 @@ export default function DidDemo() {
       }
     }
 
-    console.log('[speech] calling rec.start()')
-    // Pre-set the active flag synchronously so re-entry guards work immediately.
-    // rec.onstart also sets it (idempotent); without pre-setting, effects that fire
-    // before onstart could see false and attempt a second start() call.
+    if(pttActive) return; // Don't auto-start if Push-to-Talk is active — wait for user to click
+    console.log('[speech] starting — gen:', gen)
     isRecognitionActiveRef.current = true
-    rec.start()
     recognitionRef.current = rec
+    rec.start()
     setMicOn(true)
+   //
   }
 
-  // Shared engine teardown used by both stopMicRecognition and pauseRecognition.
-  // Nulls rec.onend before stopping so the auto-restart inside onend cannot fire.
+  // Halts the recognition engine immediately, discarding any buffered audio.
+  // Increments the generation counter to invalidate all in-flight handlers.
+  // Gate (ignoreRecognitionRef) is closed here and reopened only in rec.onstart
+  // of the next fresh session — preventing late post-abort results from leaking.
   function _haltRecognitionEngine() {
     clearTimeout(debounceTimerRef.current)
-    pendingTextRef.current = ''
-    latestInterimRef.current = ''
-    speechErrorRef.current = null
+    pendingTextRef.current    = ''
+    latestInterimRef.current  = ''
+    speechErrorRef.current    = null
     isRecognitionActiveRef.current = false
+    ignoreRecognitionRef.current   = true
+    recognitionGenerationRef.current++    // invalidate all existing handler closures
     setInterimText('')
     if (recognitionRef.current) {
       const rec = recognitionRef.current
       recognitionRef.current = null
-      rec.onend = null
-      try { rec.stop() } catch (_) {}
+      rec.onstart = rec.onresult = rec.onerror = rec.onend = null
+      console.log('[speech] halting engine — gate closed, gen now:', recognitionGenerationRef.current)
+      try {
+        // abort() discards buffered audio immediately; stop() would finalise it
+        // and fire one last onresult with whatever was in the pipeline.
+        if (typeof rec.abort === 'function') rec.abort()
+        else rec.stop()
+      } catch (_) {}
     }
   }
 
-  // User explicitly toggled mic off — clear user preference too.
   function stopMicRecognition() {
     _haltRecognitionEngine()
     setMicOn(false)
   }
 
-  // Interviewer turn — temporarily halt recognition WITHOUT changing micOn so
-  // recognition resumes automatically when the interviewer finishes.
+  // Interviewer turn — halt recognition WITHOUT changing micOn so it resumes
+  // automatically when the interviewer finishes speaking.
   function pauseRecognition() {
     _haltRecognitionEngine()
-    // micOn is intentionally NOT set to false here
   }
 
-  // ── Transcript + API ──────────────────────────────────────────────────────
+  function startPtt() {
+    if (isAgentTalkingRef.current || awaitingAgentTurnRef.current || speechBlocked) return
+    // Clear any leftover buffer so this PTT session starts clean
+    clearTimeout(debounceTimerRef.current)
+    pendingTextRef.current   = ''
+    latestInterimRef.current = ''
+    setInterimText('')
+    pttActiveRef.current = true
+    setPttActive(true)
+    if (!isRecognitionActiveRef.current) startMicRecognition()
+    setStatus('listening (PTT)')
+  }
+
+  function stopPttAndSubmit() {
+    if (!pttActiveRef.current) return
+    pttActiveRef.current = false
+    setPttActive(false)
+    // Capture before _haltRecognitionEngine clears the buffers
+    const text = (pendingTextRef.current || latestInterimRef.current).trim()
+    _haltRecognitionEngine()
+    setMicOn(false)
+    if (text) {
+      appendTranscript('user', text)
+      sendMessageToAgent(text)
+    } else {
+      if (sessionActiveRef.current) setStatus('Your turn…')
+    }
+  }
+
+  // ── Transcript + session persistence ──────────────────────────────────────
   function appendTranscript(role, text) {
     setTranscriptLog(l => [...l, { role, text, ts: Date.now() }])
   }
 
-  async function sendToBackend(text) {
-    if (!text.trim() || isRespondingRef.current) return
+  function saveMessageToSession(sessionId, role, content) {
+    fetch(`/api/interview/session/${sessionId}/message`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role, content }),
+    }).catch(e => console.warn('[session] save message failed:', e))
+  }
+
+  // ── Agent conversation ────────────────────────────────────────────────────
+
+  // Send a user message to the D-ID agent. The agent's reply arrives
+  // asynchronously via handleAgentMessage (onNewMessage callback in the hook).
+  // isResponding is cleared in the finally block after chat() resolves so the UI
+  // never gets permanently stuck — agent speaking state is tracked via isAgentTalking.
+  async function sendMessageToAgent(text) {
+    if (!text.trim() || isRespondingRef.current) {
+      console.log('[send] guard blocked — text empty:', !text.trim(), '| isResponding:', isRespondingRef.current)
+      return
+    }
+    if (isAgentTalkingRef.current) {
+      console.log('[send] blocked — agent speaking, discarding:', text.slice(0, 60))
+      return
+    }
+
+    // Close the gate immediately and flag that we're waiting for the agent to speak.
+    // agentChat() resolves as soon as D-ID acknowledges the request — well before the
+    // agent starts speaking.  Without this, the mic restarts in that window and
+    // captures the agent's own audio as user input.
+    awaitingAgentTurnRef.current = true
+    ignoreRecognitionRef.current = true
+    clearTimeout(agentResponseTimeoutRef.current)
+    // Safety valve: if the agent never fires Talking within 10s, release the gate
+    // so the user isn't locked out indefinitely.
+    agentResponseTimeoutRef.current = setTimeout(() => {
+      console.warn('[send] agent response timeout — force-releasing mic gate')
+      awaitingAgentTurnRef.current  = false
+      ignoreRecognitionRef.current  = false
+      if (sessionActiveRef.current && !isRecognitionActiveRef.current && !isAgentTalkingRef.current) {
+        startMicRecognition()
+      }
+    }, 10000)
+
     isRespondingRef.current = true
     setIsResponding(true)
     setStatus('thinking...')
     setAvatarMessage('')
-    setAvatarVideoUrl('')
-    // Read stream state from ref to avoid stale closures inside the async function
-    const streamIsLive = streamStateRef.current === 'live' || streamStateRef.current === 'speaking' || streamStateRef.current === 'connected'
+    console.log('[send] → agentChat | gate closed | text:', text.slice(0, 80))
+
+    // Transcript already added by caller (speech flush or handleManualSend).
+    if (sessionIdRef.current) {
+      saveMessageToSession(sessionIdRef.current, 'user', text)
+    }
+
     try {
-      const history = transcriptLog
-        .slice(-8)
-        .filter(t => t.text && !t.text.startsWith('('))
-        .map(t => ({ role: t.role === 'user' ? 'user' : 'assistant', content: t.text }))
-
-      const resp = await fetch('/api/did/speak', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text, history, roleType, persona, difficulty,
-          jobDescription: jobDescription || null,
-          resumeContext: resumeContext || null,
-          sessionId: sessionIdRef.current || null,
-          // Tell backend to skip D-ID Talks video generation when stream avatar is live
-          skipVideo: streamIsLive,
-        })
-      })
-      const data = await resp.json()
-      const replyText = data.message || null
-
-      // Transcript and avatar message text are always written regardless of avatar mode
-      if (replyText) {
-        setAvatarMessage(replyText)
-        appendTranscript('interviewer', replyText)
-      }
-
-      if (streamIsLive && replyText) {
-        // Realtime path: send text to live streaming avatar
-        const spoke = await streamSpeak(replyText)
-        if (!spoke) {
-          // Stream failed mid-session — fall back to TTS and restore status immediately
-          speakText(replyText)
-          setStatus(sessionActiveRef.current ? 'listening' : 'idle')
-        }
-        // If spoke successfully, don't set status here.
-        // The turn-taking effect sets 'Interviewer speaking…' while streamState === 'speaking'
-        // and restores 'listening' when the speak timer transitions back to 'live'.
-      } else if (data.videoUrl) {
-        // Generated D-ID video fallback
-        setAvatarVideoUrl(data.videoUrl)
-        setStatus('playing')
-      } else if (replyText) {
-        // Browser TTS fallback
-        speakText(replyText)
-        setStatus(sessionActiveRef.current ? 'listening' : 'idle')
-      }
-
-      if (!replyText && !data.videoUrl) {
-        appendTranscript('interviewer', '(no response)')
-        setStatus('error')
-      }
+      const result = await agentChat(text)
+      console.log('[send] agentChat resolved — result:', result ? JSON.stringify(result).slice(0, 120) : result)
+      if (!result) console.warn('[send] agentChat returned falsy — agent may not respond')
     } catch (e) {
-      console.error('Backend error:', e)
-      setAvatarMessage('Could not reach backend.')
-      setStatus('error')
+      console.error('[send] agentChat threw:', e)
     } finally {
+      // Unblock the responding guard so the next send can proceed.
+      // Mic stays off (awaitingAgentTurnRef still true) — the turn-taking effect
+      // will set status and restart mic once the agent actually starts speaking.
       isRespondingRef.current = false
       setIsResponding(false)
-      // Status is managed per-branch in the try block and by the turn-taking effect
-      // for the stream path — do not set a blanket status here.
+      console.log('[send] isResponding cleared; awaiting agent speech | gate still closed')
+      if (sessionActiveRef.current && !awaitingAgentTurnRef.current) setStatus('listening')
     }
   }
 
-  function speakText(text) {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel()
-      window.speechSynthesis.speak(new SpeechSynthesisUtterance(text))
-    }
-  }
-
-  // Triggers the interviewer's opening line immediately after a session is
-  // created. Uses the live stream if already connected, falls back to D-ID
-  // video or browser TTS otherwise. Stream state is re-checked at response
-  // time so a late-connecting stream is used if it becomes ready during the
-  // Claude round-trip.
-  async function sendOpeningGreeting(sessionId) {
+  // Trigger the opening greeting after session start. Sends interview context
+  // to the agent so it knows the role, difficulty, and persona to adopt.
+  async function openingGreet(sessionId) {
     if (!sessionActiveRef.current) return
+
+    // Same gate logic as sendMessageToAgent — keep mic off until agent actually speaks.
+    awaitingAgentTurnRef.current = true
+    ignoreRecognitionRef.current = true
+    clearTimeout(agentResponseTimeoutRef.current)
+    agentResponseTimeoutRef.current = setTimeout(() => {
+      console.warn('[greet] agent response timeout — force-releasing mic gate')
+      awaitingAgentTurnRef.current  = false
+      ignoreRecognitionRef.current  = false
+      if (sessionActiveRef.current && !isRecognitionActiveRef.current && !isAgentTalkingRef.current) {
+        startMicRecognition()
+      }
+    }, 10000)
+
+    isRespondingRef.current = true
     setIsResponding(true)
     setStatus('thinking...')
-    const streamLiveAtSend = streamStateRef.current === 'live' || streamStateRef.current === 'speaking' || streamStateRef.current === 'connected'
+
+    const parts = [
+      `Begin the interview. You are interviewing a candidate for a ${roleType} position.`,
+      `Difficulty: ${difficulty}. Interviewer persona: ${persona}.`,
+      jobDescription ? `Job description: ${jobDescription}` : null,
+      resumeContext  ? `Candidate resume highlights: ${resumeContext}` : null,
+    ].filter(Boolean)
+    const context = parts.join(' ')
+    console.log('[greet] sending opening context:', context.slice(0, 120))
+
     try {
-      const resp = await fetch('/api/did/speak', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: '',
-          history: [],
-          roleType, persona, difficulty,
-          jobDescription: jobDescription || null,
-          resumeContext: resumeContext || null,
-          sessionId,
-          skipVideo: streamLiveAtSend,
-          isOpening: true,
-        })
-      })
-      const data = await resp.json()
-      const replyText = data.message || null
-      if (replyText) {
-        setAvatarMessage(replyText)
-        appendTranscript('interviewer', replyText)
-        // Re-check stream state — it may have connected during Claude's round-trip
-        const streamNowLive = streamStateRef.current === 'live' || streamStateRef.current === 'speaking' || streamStateRef.current === 'connected'
-        if (streamNowLive) {
-          const spoke = await streamSpeak(replyText)
-          if (!spoke) {
-            speakText(replyText)
-            setStatus(sessionActiveRef.current ? 'listening' : 'idle')
-          }
-          // If spoke, turn-taking effect owns the status transition
-        } else if (data.videoUrl) {
-          setAvatarVideoUrl(data.videoUrl)
-          setStatus('playing')
-        } else {
-          speakText(replyText)
-          setStatus(sessionActiveRef.current ? 'listening' : 'idle')
-        }
-      } else {
-        setStatus(sessionActiveRef.current ? 'listening' : 'idle')
-      }
+      const result = await agentChat(context)
+      console.log('[greet] agentChat resolved — result:', result ? JSON.stringify(result).slice(0, 120) : result)
     } catch (e) {
-      console.error('Opening greeting failed:', e)
-      setStatus(sessionActiveRef.current ? 'listening' : 'idle')
+      console.error('[greet] agentChat threw:', e)
     } finally {
       isRespondingRef.current = false
       setIsResponding(false)
+      console.log('[greet] isResponding cleared; opening reply expected via callback')
+      if (sessionActiveRef.current) setStatus('listening')
     }
+    void sessionId
   }
 
   // ── Session lifecycle ─────────────────────────────────────────────────────
@@ -403,33 +549,49 @@ export default function DidDemo() {
     setStatus('starting...')
     setTranscriptLog([])
     setAvatarMessage('')
-    setAvatarVideoUrl('')
     setLastResult(null)
-    // Mic MUST start before any await — Chrome only allows rec.start() in sync gesture stack
+    // Mic MUST start before any await — Chrome only allows rec.start() in sync gesture stack.
     if (!speechBlocked) startMicRecognition()
     startCamera()
-    // Unmute the avatar stream now that we're inside a user gesture.
-    // The video starts muted so Chrome's autoPlay policy allows pre-warm playback;
-    // here the user has explicitly clicked Start, so audio is safe to enable.
-    if (streamVideoRef.current) {
-      streamVideoRef.current.muted = false
-      console.log('[session] avatar video unmuted for session start')
+    // Unmute agent video now that we're inside a user gesture. The video starts
+    // muted so Chrome's autoPlay policy allows pre-warm playback without a gesture.
+    if (agentVideoRef.current) {
+      agentVideoRef.current.muted = false
+      console.log('[session] agent video unmuted')
     }
-    // connect() is a no-op if the pre-warm already succeeded (guard inside hook).
-    // If the stream dropped or failed, this reconnects it.
-    connectStream().catch(console.warn)
+    // connectAgent() is a no-op if the pre-warm already connected.
+    connectAgent().catch(console.warn)
+    console.log('[session] start — awaiting session API + agent readiness in parallel')
     try {
-      const resp = await fetch('/api/interview/session/start', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roleType, persona, difficulty, jobDescription: jobDescription || null, resumeContext: resumeContext || null })
-      })
+      // Run the session creation API call and agent readiness in parallel.
+      // openingGreet() must not fire until onSrcObjectReady has fired inside the
+      // SDK — calling chat() before that throws "Streaming manager is not initialized".
+      const [resp] = await Promise.all([
+        fetch('/api/interview/session/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            roleType, persona, difficulty,
+            jobDescription: jobDescription || null,
+            resumeContext:  resumeContext  || null,
+          }),
+        }),
+        // Race agent readiness against a 15s timeout so a connection failure
+        // doesn't block the session start path indefinitely.
+        Promise.race([
+          agentWhenReady(),
+          new Promise(resolve => setTimeout(() => {
+            console.warn('[session] agent readiness timeout — proceeding without confirmed ready')
+            resolve()
+          }, 15000)),
+        ]),
+      ])
       const data = await resp.json()
       sessionIdRef.current = data.sessionId
-      // Interviewer speaks first — makes the session feel live from the very start
-      sendOpeningGreeting(data.sessionId).catch(console.warn)
+      console.log('[session] agent ready + session created — calling openingGreet')
+      openingGreet(data.sessionId).catch(console.warn)
     } catch (e) {
-      console.error('Failed to create session record:', e)
+      console.error('Failed to create session:', e)
     }
   }
 
@@ -437,19 +599,17 @@ export default function DidDemo() {
     const sid = sessionIdRef.current
     sessionActiveRef.current = false
     setSessionActive(false)
+    pttActiveRef.current = false
+    setPttActive(false)
     stopMicRecognition()
     stopCamera()
     setSpeechBlocked(false)
     setStatus('idle')
-    disconnectStream().catch(console.warn)
-    if (avatarVideoRef.current) {
-      avatarVideoRef.current.pause()
-      avatarVideoRef.current.src = ''
-    }
+    disconnectAgent().catch(console.warn)
     sessionIdRef.current = null
     if (sid) {
       try {
-        const endResp = await fetch(`/api/interview/session/${sid}/end`, { method: 'POST' })
+        const endResp    = await fetch(`/api/interview/session/${sid}/end`, { method: 'POST' })
         const endedSession = await endResp.json()
         setLastResult(normalizeResult(endedSession.scorecard || tryParseResult(endedSession.finalSummary)))
         const listResp = await fetch('/api/interview/sessions')
@@ -464,12 +624,12 @@ export default function DidDemo() {
     const text = manualInput.trim()
     if (!text) return
     appendTranscript('user', text)
-    sendToBackend(text)
+    sendMessageToAgent(text)
     setManualInput('')
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
-  const showLower = sessionActive || transcriptLog.length > 0 || lastResult
+  const showLower  = sessionActive || transcriptLog.length > 0 || lastResult
   const showResult = lastResult && !sessionActive
 
   return (
@@ -496,17 +656,16 @@ export default function DidDemo() {
         {/* Left: avatar + controls */}
         <div style={css.leftCol}>
           <div style={css.avatarPanel}>
-            {/* Streaming video — always mounted so WebRTC srcObject can be set at any time.
-                muted is required: Chrome blocks autoPlay on unmuted streams,
-                causing play() to be rejected and the video to stay blank. */}
+            {/* Agent video — always mounted so the SDK can assign srcObject at any time.
+                muted allows Chrome autoPlay pre-session; unmuted inside startSession(). */}
             <video
-              ref={streamVideoRef}
+              ref={agentVideoRef}
               autoPlay
               playsInline
               muted
               style={{
                 ...css.avatarVideo,
-                display: (streamState === 'live' || streamState === 'speaking') ? 'block' : 'none',
+                display: (agentState === 'ready' || agentState === 'talking') ? 'block' : 'none',
               }}
               onLoadedMetadata={(e) => {
                 const v = e.target
@@ -515,72 +674,56 @@ export default function DidDemo() {
             />
 
             {/* Connecting state */}
-            {streamState === 'connecting' && (
+            {agentState === 'connecting' && (
               <div style={css.avatarFallback}>
                 <div style={css.avatarOrbGenerating}>📡</div>
                 <p style={css.avatarSpeech}>Connecting live avatar…</p>
               </div>
             )}
 
-            {/* Fallback panel when stream is off or connected-but-no-frames-yet */}
-            {(streamState === 'disconnected' || streamState === 'error' || streamState === 'connected') && (
-              avatarVideoUrl ? (
-                <video
-                  ref={avatarVideoRef}
-                  src={avatarVideoUrl}
-                  autoPlay
-                  playsInline
-                  style={css.avatarVideo}
-                  onEnded={() => {
-                    setAvatarVideoUrl('')
-                    setStatus(sessionActiveRef.current ? 'listening' : 'idle')
-                  }}
-                />
-              ) : (
-                <div style={css.avatarFallback}>
-                  <div style={isResponding ? css.avatarOrbGenerating : css.avatarOrb}>
-                    {isResponding ? '💭' : '🤖'}
-                  </div>
-                  <p style={css.avatarSpeech}>
-                    {isResponding
-                      ? 'Generating response…'
-                      : streamState === 'connected'
-                        ? 'Avatar connected — will appear when speaking begins.'
-                        : avatarMessage
-                          ? avatarMessage
-                          : sessionActive
-                            ? 'Listening… speak or type to continue.'
-                            : 'Configure your session below and click Start to begin.'}
-                  </p>
+            {/* Fallback: disconnected / error / connected-but-no-srcObject-yet */}
+            {(agentState === 'disconnected' || agentState === 'error' || agentState === 'connected') && (
+              <div style={css.avatarFallback}>
+                <div style={isResponding ? css.avatarOrbGenerating : css.avatarOrb}>
+                  {isResponding ? '💭' : '🤖'}
                 </div>
-              )
+                <p style={css.avatarSpeech}>
+                  {isResponding
+                    ? 'Generating response…'
+                    : agentState === 'connected'
+                      ? 'Avatar connected — will appear when speaking begins.'
+                      : avatarMessage
+                        ? avatarMessage
+                        : sessionActive
+                          ? 'Listening… speak or type to continue.'
+                          : 'Configure your session below and click Start to begin.'}
+                </p>
+              </div>
             )}
 
             <div style={{
               ...css.panelTag,
-              ...(streamState === 'live' || streamState === 'speaking'
+              ...(agentState === 'ready' || agentState === 'talking'
                 ? { color: '#22c55e', background: 'rgba(34,197,94,0.06)' }
-                : streamState === 'connected'
+                : agentState === 'connected'
                   ? { color: '#06b6d4', background: 'rgba(6,182,212,0.06)' }
-                  : streamState === 'connecting'
+                  : agentState === 'connecting'
                     ? { color: '#f59e0b', background: 'rgba(245,158,11,0.06)' }
                     : {}),
             }}>
-              {streamState === 'connecting'
+              {agentState === 'connecting'
                 ? '● Connecting'
-                : streamState === 'connected'
+                : agentState === 'connected'
                   ? '● Connected'
-                  : streamState === 'speaking'
+                  : agentState === 'talking'
                     ? '● Speaking'
-                    : streamState === 'live' && !sessionActive
+                    : agentState === 'ready' && !sessionActive
                       ? '● Ready'
-                      : streamState === 'live'
+                      : agentState === 'ready'
                         ? '● Live'
-                        : avatarVideoUrl
-                          ? 'Speaking'
-                          : isResponding
-                            ? 'Thinking'
-                            : 'AI Interviewer'}
+                        : isResponding
+                          ? 'Thinking'
+                          : 'AI Interviewer'}
             </div>
           </div>
 
@@ -599,6 +742,17 @@ export default function DidDemo() {
                 </button>
               )}
             </div>
+            {sessionActive && (
+              <div style={css.btnRow}>
+                <button
+                  style={pttBtn(pttActive, isAgentTurn || speechBlocked)}
+                  disabled={isAgentTurn || speechBlocked}
+                  onClick={() => pttActive ? stopPttAndSubmit() : startPtt()}
+                >
+                  {pttActive ? '⏹ Stop Speaking' : '🎙 Push to Speak'}
+                </button>
+              </div>
+            )}
             <div style={css.btnRow}>
               <button style={sessionBtn('#16a34a', sessionActive)} disabled={sessionActive} onClick={startSession}>
                 Start Session
@@ -788,7 +942,7 @@ export default function DidDemo() {
           {showHistory && (
             <div style={css.historyList}>
               {pastSessions.map(s => {
-                const r = normalizeResult(s.scorecard || tryParseResult(s.finalSummary))
+                const r      = normalizeResult(s.scorecard || tryParseResult(s.finalSummary))
                 const isOpen = expandedSession === s.sessionId
                 return (
                   <div key={s.sessionId} style={css.historyItem}>
@@ -864,22 +1018,22 @@ function normalizeResult(r) {
   if (!r) return null
   const gradeMap = { A: 90, B: 75, C: 60, D: 45 }
   return {
-    overallScore: r.overallScore ?? (r.score ? (gradeMap[r.score] ?? null) : null),
-    feedbackSummary: r.feedbackSummary || r.summary || null,
-    strengths: r.strengths || [],
-    areasToImprove: r.areasToImprove || r.improvements || [],
-    suggestedFocus: r.suggestedFocus || null,
-    clarityScore: r.clarityScore ?? null,
-    confidenceScore: r.confidenceScore ?? null,
-    answerDepthScore: r.answerDepthScore ?? null,
-    followUpHandlingScore: r.followUpHandlingScore ?? null,
+    overallScore:              r.overallScore ?? (r.score ? (gradeMap[r.score] ?? null) : null),
+    feedbackSummary:           r.feedbackSummary || r.summary || null,
+    strengths:                 r.strengths || [],
+    areasToImprove:            r.areasToImprove || r.improvements || [],
+    suggestedFocus:            r.suggestedFocus || null,
+    clarityScore:              r.clarityScore              ?? null,
+    confidenceScore:           r.confidenceScore           ?? null,
+    answerDepthScore:          r.answerDepthScore          ?? null,
+    followUpHandlingScore:     r.followUpHandlingScore     ?? null,
     communicationQualityScore: r.communicationQualityScore ?? null,
-    fillerWordCount: r.fillerWordCount ?? null,
+    fillerWordCount:           r.fillerWordCount           ?? null,
   }
 }
 
 function ScoreRow({ label, score }) {
-  const pct = Math.round((score / 10) * 100)
+  const pct   = Math.round((score / 10) * 100)
   const color = scoreColor(score)
   return (
     <div style={css.scoreRow}>
@@ -909,12 +1063,13 @@ function overallChip(score) {
 }
 
 function statusColor(s) {
-  if (s === 'listening') return '#22c55e'
-  if (s === 'finishing...') return '#86efac'
+  if (s === 'listening')               return '#22c55e'
+  if (s === 'Your turn…')              return '#4ade80'
+  if (s === 'finishing...')            return '#86efac'
   if (s === 'thinking...' || s === 'sending') return '#f59e0b'
-  if (s === 'Interviewer speaking…') return '#818cf8'
+  if (s === 'Interviewer speaking…')   return '#818cf8'
   if (s === 'error' || s.includes('blocked')) return '#ef4444'
-  if (s === 'playing') return '#3b82f6'
+  if (s === 'playing')                 return '#3b82f6'
   return '#475569'
 }
 
@@ -933,6 +1088,26 @@ function blockedBtn() {
     border: '1px solid rgba(239,68,68,0.2)', cursor: 'pointer',
     fontSize: 12, fontWeight: 500,
     background: 'rgba(239,68,68,0.06)', color: '#f87171'
+  }
+}
+
+function pttBtn(active, disabled) {
+  if (disabled) return {
+    flex: 1, padding: '8px 0', borderRadius: 6, border: 'none',
+    cursor: 'not-allowed', fontSize: 12, fontWeight: 500,
+    background: 'rgba(255,255,255,0.03)', color: '#1e293b'
+  }
+  if (active) return {
+    flex: 1, padding: '8px 0', borderRadius: 6,
+    border: '1px solid rgba(239,68,68,0.25)', cursor: 'pointer',
+    fontSize: 12, fontWeight: 600,
+    background: 'rgba(239,68,68,0.14)', color: '#f87171'
+  }
+  return {
+    flex: 1, padding: '8px 0', borderRadius: 6,
+    border: '1px solid rgba(34,197,94,0.2)', cursor: 'pointer',
+    fontSize: 12, fontWeight: 500,
+    background: 'rgba(34,197,94,0.08)', color: '#4ade80'
   }
 }
 
@@ -983,9 +1158,9 @@ const css = {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     flexShrink: 0, position: 'sticky', top: 0, zIndex: 10
   },
-  headerLeft: { display: 'flex', alignItems: 'baseline', gap: 10 },
-  logo: { fontSize: 15, fontWeight: 700, color: '#f1f5f9', letterSpacing: 0.2 },
-  logoSub: { fontSize: 12, color: '#1e3a5f' },
+  headerLeft:  { display: 'flex', alignItems: 'baseline', gap: 10 },
+  logo:        { fontSize: 15, fontWeight: 700, color: '#f1f5f9', letterSpacing: 0.2 },
+  logoSub:     { fontSize: 12, color: '#1e3a5f' },
   headerRight: { display: 'flex', alignItems: 'center', gap: 10 },
   livePill: {
     fontSize: 11, fontWeight: 600, color: '#22c55e',
@@ -1014,7 +1189,7 @@ const css = {
     display: 'flex', flexDirection: 'column',
     border: '1px solid rgba(255,255,255,0.04)'
   },
-  avatarVideo: { flex: 1, width: '100%', objectFit: 'cover', display: 'block' },
+  avatarVideo:    { flex: 1, width: '100%', objectFit: 'cover', display: 'block' },
   avatarFallback: {
     flex: 1, display: 'flex', flexDirection: 'column',
     alignItems: 'center', justifyContent: 'center',
@@ -1095,12 +1270,12 @@ const css = {
     flex: '1 1 auto', overflowY: 'auto',
     display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 10
   },
-  emptyNote: { fontSize: 12, color: '#1e293b', textAlign: 'center', padding: '12px 0' },
+  emptyNote:    { fontSize: 12, color: '#1e293b', textAlign: 'center', padding: '12px 0' },
   interimBubble: {
     padding: '5px 10px', borderRadius: 6, fontSize: 13, lineHeight: 1.5,
     background: 'rgba(255,255,255,0.01)', border: '1px dashed rgba(255,255,255,0.04)'
   },
-  inputRow: { display: 'flex', gap: 6, flexShrink: 0 },
+  inputRow:  { display: 'flex', gap: 6, flexShrink: 0 },
   textInput: {
     flex: 1, padding: '8px 10px', borderRadius: 6,
     border: '1px solid rgba(255,255,255,0.07)',
@@ -1112,15 +1287,15 @@ const css = {
   },
 
   // Score rows
-  scoreRows: { display: 'flex', flexDirection: 'column', gap: 8 },
-  scoreRow: { display: 'flex', alignItems: 'center', gap: 10 },
-  scoreLabel: { fontSize: 12, color: '#475569', width: 112, flexShrink: 0 },
+  scoreRows:     { display: 'flex', flexDirection: 'column', gap: 8 },
+  scoreRow:      { display: 'flex', alignItems: 'center', gap: 10 },
+  scoreLabel:    { fontSize: 12, color: '#475569', width: 112, flexShrink: 0 },
   scoreBarTrack: {
     flex: 1, height: 4, borderRadius: 4,
     background: 'rgba(255,255,255,0.06)', overflow: 'hidden'
   },
-  scoreBarFill: { height: '100%', borderRadius: 4 },
-  scoreValue: { fontSize: 12, fontWeight: 600, width: 64, textAlign: 'right', flexShrink: 0 },
+  scoreBarFill:  { height: '100%', borderRadius: 4 },
+  scoreValue:    { fontSize: 12, fontWeight: 600, width: 64, textAlign: 'right', flexShrink: 0 },
 
   // Result card
   resultCard: {
@@ -1142,7 +1317,7 @@ const css = {
     padding: '10px 12px', borderRadius: 7,
     background: 'rgba(255,255,255,0.02)'
   },
-  resultBlock: { display: 'flex', flexDirection: 'column', gap: 6 },
+  resultBlock:      { display: 'flex', flexDirection: 'column', gap: 6 },
   resultBlockLabel: {
     fontSize: 10, fontWeight: 700, color: '#334155',
     textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 2
@@ -1161,7 +1336,7 @@ const css = {
 
   // History
   historySection: { borderTop: '1px solid rgba(255,255,255,0.04)', flexShrink: 0 },
-  historyToggle: {
+  historyToggle:  {
     width: '100%', padding: '9px 20px',
     background: 'transparent', border: 'none', cursor: 'pointer',
     display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left'
@@ -1189,7 +1364,7 @@ const css = {
     fontSize: 13, fontWeight: 700, color: '#a78bfa',
     background: 'rgba(99,102,241,0.08)', padding: '1px 8px', borderRadius: 5
   },
-  historyDate: { fontSize: 11, color: '#1e293b' },
+  historyDate:   { fontSize: 11, color: '#1e293b' },
   historyDetail: {
     padding: '0 12px 12px',
     display: 'flex', flexDirection: 'column', gap: 8
@@ -1211,7 +1386,7 @@ const css = {
     background: 'rgba(245,158,11,0.07)', color: '#fbbf24'
   },
   miniTranscript: { display: 'flex', flexDirection: 'column', gap: 4 },
-  moreMsg: { fontSize: 11, color: '#334155', textAlign: 'center', paddingTop: 4 },
+  moreMsg:        { fontSize: 11, color: '#334155', textAlign: 'center', paddingTop: 4 },
 
   // Shared
   sectionLabel: {
