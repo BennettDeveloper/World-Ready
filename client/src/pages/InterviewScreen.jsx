@@ -16,35 +16,32 @@ export default function InterviewScreen({ onComplete }) {
   const navigate = useNavigate()
   const config = getPendingSession()
 
-  const [messages, setMessages] = useState([])
-  const [draft, setDraft] = useState('')
-  const [qIndex, setQIndex] = useState(0)
-  const [answerCount, setAnswerCount] = useState(0)
-  const [isComplete, setIsComplete] = useState(false)
-  const [answers, setAnswers] = useState([])
-  const [timerKey, setTimerKey] = useState(0)
-  const [timerRunning, setTimerRunning] = useState(false)
-  const [repeatCounts, setRepeatCounts] = useState({})
-  const chatRef = useRef(null)
-  const textareaRef = useRef(null)
+  const regionData = config ? REGIONS[config.region] : null;
+  const questions = regionData?.questions || [];
+  const timerSeconds = DIFFICULTY_SECONDS[config?.difficulty] || 120;
 
-  const regionData = config ? REGIONS[config.region] : null
-  const questions = regionData?.questions || []
-  const timerSeconds = DIFFICULTY_SECONDS[config?.difficulty] || 120
+  const [messages, setMessages] = useState(() =>
+    regionData ? [{ from: 'interviewer', text: regionData.greeting, isGreeting: true }] : []
+  );
+  const [draft, setDraft] = useState('');
+  const [qIndex, setQIndex] = useState(0);
+  const [answerCount, setAnswerCount] = useState(0);
+  const [isComplete, setIsComplete] = useState(false);
+  const [answers, setAnswers] = useState([]);
+  const [timerKey, setTimerKey] = useState(0);
+  const [timerRunning, setTimerRunning] = useState(false);
+  const [repeatCounts, setRepeatCounts] = useState({});
+  const chatRef = useRef(null);
 
   useEffect(() => {
-    if (!config || !regionData) { navigate('/home'); return }
-    setMessages([{ from: 'interviewer', text: regionData.greeting, isGreeting: true }])
+    if (!config || !regionData) { navigate('/home'); return; }
     const t = setTimeout(() => {
-      setMessages(prev => [...prev, { from: 'interviewer', text: questions[0] }])
-      setTimerRunning(true)
-    }, 800)
-    return () => clearTimeout(t)
-  }, [])
-
-  useEffect(() => {
-    if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight
-  }, [messages])
+      setMessages(prev => [...prev, { from: 'interviewer', text: questions[0] }]);
+      setTimerRunning(true);
+    }, 800);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!isComplete && textareaRef.current) textareaRef.current.focus()
@@ -60,8 +57,10 @@ export default function InterviewScreen({ onComplete }) {
     if (isGibberish(answer)) {
       const currentRepeats = repeatCounts[qIndex] || 0
       if (currentRepeats < 2) {
-        const gibReply = regionData.gibberishResponse || "I'm sorry, I didn't quite follow that."
-        setRepeatCounts(prev => ({ ...prev, [qIndex]: currentRepeats + 1 }))
+        // In-character gibberish response + repeat question
+        const gibReply = regionData.gibberishResponse || "I'm sorry, I didn't quite follow that. Let me ask again.";
+        setRepeatCounts(prev => ({ ...prev, [qIndex]: currentRepeats + 1 }));
+
         setTimeout(() => {
           setMessages(prev => [...prev, { from: 'interviewer', text: gibReply, isGibberish: true }])
           setTimeout(() => {

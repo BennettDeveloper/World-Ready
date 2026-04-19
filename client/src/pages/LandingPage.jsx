@@ -1,12 +1,11 @@
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import Globe from '../components/Globe'
-import DifficultySelector from '../components/DifficultySelector'
-import LeaderboardPreview from '../components/LeaderboardPreview'
-import { REGIONS } from '../data/regions'
-import { setPendingSession } from '../utils/storage'
-import { isValidJobTitle } from '../utils/validation'
-import { getCityTimeContext } from '../utils/maps'
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import WorldMap from '../components/WorldMap';
+import DifficultySelector from '../components/DifficultySelector';
+import LeaderboardPreview from '../components/LeaderboardPreview';
+import { REGIONS } from '../data/regions';
+import { setPendingSession } from '../utils/storage';
+import { isValidJobTitle } from '../utils/validation';
 
 export default function LandingPage({ user }) {
   const [selectedRegion, setSelectedRegion] = useState(null)
@@ -222,22 +221,9 @@ export default function LandingPage({ user }) {
           <LeaderboardPreview />
         </aside>
 
-        {/* ── Globe center ── */}
-        <div style={{
-          display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center',
-        }}>
-          <Globe
-            size={500}
-            selectedRegion={selectedRegion}
-            onSelectRegion={handleSelectRegion}
-          />
-          <p style={{
-            marginTop: '12px', fontSize: '11px',
-            color: 'var(--text-muted)', letterSpacing: '1px', fontStyle: 'italic',
-          }}>
-            Click a pin to select your interview room
-          </p>
+        {/* Globe */}
+        <div className="globe-stage">
+          <WorldMap selectedRegion={selectedRegion} onSelectRegion={handleSelectRegion} />
         </div>
 
         {/* ── Right panel ── */}

@@ -22,7 +22,8 @@ const DIFFICULTIES = [
   },
 ]
 
-export const DIFFICULTY_SECONDS = { easy: 180, medium: 120, hard: 60 }
+// eslint-disable-next-line react-refresh/only-export-components
+export const DIFFICULTY_SECONDS = { easy: 180, medium: 120, hard: 60 };
 
 export default function DifficultySelector({ value, onChange }) {
   return (
