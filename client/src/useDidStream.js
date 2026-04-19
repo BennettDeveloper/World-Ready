@@ -57,7 +57,7 @@ export function useDidStream() {
       return false
     }
     const cur = streamStateRef.current
-    if (cur === 'live' || cur === 'speaking') {
+    if (cur === 'live' || cur === 'speaking' || cur === 'connected') {
       console.log('[stream] guard — already', cur, ', skipping duplicate connect')
       return false
     }
@@ -252,15 +252,49 @@ export function useDidStream() {
       return false
     }
 
+    // Diagnostic: log audio/video track state before sending
+    const vid = videoRef.current
+    if (vid?.srcObject) {
+      const audioTracks = vid.srcObject.getAudioTracks()
+      const videoTracks = vid.srcObject.getVideoTracks()
+      console.log('[stream] speak — video muted:', vid.muted, ' paused:', vid.paused,
+        ' currentTime:', vid.currentTime.toFixed(3))
+      console.log('[stream] speak — audio tracks:', audioTracks.length,
+        audioTracks.map(t => `${t.kind}:${t.readyState}:enabled=${t.enabled}:muted=${t.muted}`).join(', '))
+      console.log('[stream] speak — video tracks:', videoTracks.length,
+        videoTracks.map(t => `${t.kind}:${t.readyState}:enabled=${t.enabled}`).join(', '))
+    } else {
+      console.warn('[stream] speak — no srcObject on video element')
+    }
+
     clearTimeout(speakTimerRef.current)
     setState('speaking')
 
     try {
-      await fetch(`${API}/${streamIdRef.current}/speak`, {
+      const resp = await fetch(`${API}/${streamIdRef.current}/speak`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),
       })
+
+      if (!resp.ok) {
+        const errBody = await resp.json().catch(() => ({}))
+        console.error('[stream] speak backend error:', resp.status, errBody)
+        setState('live')
+        return false
+      }
+
+      console.log('[stream] speak request accepted — status:', resp.status)
+
+      // After D-ID accepts the speak request, listen for the first new video frame
+      if (vid && 'requestVideoFrameCallback' in HTMLVideoElement.prototype) {
+        vid.requestVideoFrameCallback(() => {
+          console.log('[stream] first frame after speak — ct:', vid.currentTime.toFixed(3),
+            'size:', vid.videoWidth, 'x', vid.videoHeight,
+            'muted:', vid.muted, 'paused:', vid.paused)
+        })
+      }
+
       const ms = Math.max(text.split(/\s+/).length * 250 + 1500, 3000)
       speakTimerRef.current = setTimeout(() => setState('live'), ms)
       return true

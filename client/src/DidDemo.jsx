@@ -351,6 +351,13 @@ export default function DidDemo() {
     // Mic MUST start before any await — Chrome only allows rec.start() in sync gesture stack
     if (!speechBlocked) startMicRecognition()
     startCamera()
+    // Unmute the avatar stream now that we're inside a user gesture.
+    // The video starts muted so Chrome's autoPlay policy allows pre-warm playback;
+    // here the user has explicitly clicked Start, so audio is safe to enable.
+    if (streamVideoRef.current) {
+      streamVideoRef.current.muted = false
+      console.log('[session] avatar video unmuted for session start')
+    }
     // connect() is a no-op if the pre-warm already succeeded (guard inside hook).
     // If the stream dropped or failed, this reconnects it.
     connectStream().catch(console.warn)
