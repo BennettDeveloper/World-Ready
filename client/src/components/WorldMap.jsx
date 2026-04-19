@@ -12,8 +12,11 @@ const POINTS = Object.entries(REGIONS).map(([key, r]) => ({
 
 export default function WorldMap({ selectedRegion, onSelectRegion }) {
   const globeRef = useRef();
+  const elMapRef = useRef({});
+  const onSelectRef = useRef(onSelectRegion);
+  useEffect(() => { onSelectRef.current = onSelectRegion; });
 
-  // Auto-rotate when idle
+  // Init controls once
   useEffect(() => {
     const globe = globeRef.current;
     if (!globe) return;
@@ -24,10 +27,13 @@ export default function WorldMap({ selectedRegion, onSelectRegion }) {
     globe.pointOfView({ lat: 22, lng: 15, altitude: 2.2 });
   }, []);
 
-  // Pan to selected region
+  // Pan to selected region — update CSS classes directly, no element recreation
   useEffect(() => {
     const globe = globeRef.current;
     if (!globe) return;
+    Object.entries(elMapRef.current).forEach(([key, el]) => {
+      el.classList.toggle('selected', key === selectedRegion);
+    });
     if (selectedRegion && REGIONS[selectedRegion]) {
       const r = REGIONS[selectedRegion];
       globe.controls().autoRotate = false;
@@ -38,15 +44,16 @@ export default function WorldMap({ selectedRegion, onSelectRegion }) {
     }
   }, [selectedRegion]);
 
+  // Stable factory — never changes, so globe never duplicates elements
   const makeHtmlEl = useCallback((d) => {
     const el = document.createElement('div');
-    const isSelected = d.key === selectedRegion;
-    el.className = 'globe-pin' + (isSelected ? ' selected' : '');
+    el.className = 'globe-pin';
     el.innerHTML = `<span class="globe-pin-flag">${d.flag}</span>`;
     el.title = d.name;
-    el.addEventListener('click', () => onSelectRegion?.(d.key));
+    el.addEventListener('click', () => onSelectRef.current?.(d.key));
+    elMapRef.current[d.key] = el;
     return el;
-  }, [selectedRegion, onSelectRegion]);
+  }, []);
 
   return (
     <div className="world-map-stage">
@@ -57,11 +64,11 @@ export default function WorldMap({ selectedRegion, onSelectRegion }) {
         globeImageUrl="//unpkg.com/three-globe/example/img/earth-night.jpg"
         bumpImageUrl="//unpkg.com/three-globe/example/img/earth-topology.png"
         backgroundColor="rgba(0,0,0,0)"
-        atmosphereColor="rgba(0,212,255,0.18)"
-        atmosphereAltitude={0.18}
+        atmosphereColor="#00d4ff"
+        atmosphereAltitude={0.15}
         htmlElementsData={POINTS}
         htmlElement={makeHtmlEl}
-        htmlTransitionDuration={300}
+        htmlTransitionDuration={0}
       />
       <div className="world-map-hint">Click a pin to select your interview city</div>
     </div>
