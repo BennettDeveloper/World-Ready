@@ -16,13 +16,13 @@ public class ClaudeService {
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    @Value("${anthropic.api.key}")
+    @Value("${anthropic.api.key:}")
     private String apiKey;
 
-    @Value("${anthropic.api.url}")
+    @Value("${anthropic.api.url:}")
     private String apiUrl;
 
-    @Value("${anthropic.model}")
+    @Value("${anthropic.model:}")
     private String model;
 
     public ClaudeService(RestTemplate restTemplate) {

@@ -1,13 +1,14 @@
-package com.worldready.backend.dto;
+package com.worldready.backend.dto.request;
+
 
 import com.worldready.backend.model.InterviewMessage;
+
 import java.util.List;
 
-public class NextQuestionRequest {
+public class AnalyzeRequest {
     private String region;
     private String role;
     private List<InterviewMessage> conversationHistory;
-    private int questionNumber;
 
     public String getRegion() { return region; }
     public void setRegion(String region) { this.region = region; }
@@ -18,6 +19,7 @@ public class NextQuestionRequest {
     public List<InterviewMessage> getConversationHistory() { return conversationHistory; }
     public void setConversationHistory(List<InterviewMessage> conversationHistory) { this.conversationHistory = conversationHistory; }
 
-    public int getQuestionNumber() { return questionNumber; }
-    public void setQuestionNumber(int questionNumber) { this.questionNumber = questionNumber; }
+    private String resumeText;
+    public String getResumeText() { return resumeText; }
+    public void setResumeText(String resumeText) { this.resumeText = resumeText; }
 }
