@@ -8,6 +8,7 @@ public class NextQuestionRequest {
     private String role;
     private List<InterviewMessage> conversationHistory;
     private int questionNumber;
+    private String timeContext;
 
     public String getRegion() { return region; }
     public void setRegion(String region) { this.region = region; }
@@ -20,4 +21,7 @@ public class NextQuestionRequest {
 
     public int getQuestionNumber() { return questionNumber; }
     public void setQuestionNumber(int questionNumber) { this.questionNumber = questionNumber; }
+
+    public String getTimeContext() { return timeContext; }
+    public void setTimeContext(String timeContext) { this.timeContext = timeContext; }
 }

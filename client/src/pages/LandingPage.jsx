@@ -92,20 +92,46 @@ export default function LandingPage({ user }) {
             </div>
           )}
 
-          {/* Region grid fallback if no pin clicked */}
+          {/* No region selected — hint */}
           {!region && (
-            <div className="region-grid-compact">
-              {Object.entries(REGIONS).map(([key, r]) => (
-                <button
-                  key={key}
-                  className={`region-chip${selectedRegion === key ? ' selected' : ''}`}
-                  onClick={() => handleSelectRegion(key)}
-                  type="button"
-                >
-                  <span>{r.flag}</span>
-                  <span>{r.name}</span>
-                </button>
-              ))}
+            <div style={{
+              background: 'rgba(5,21,37,0.6)',
+              border: '1px solid rgba(0,210,255,0.1)',
+              borderRadius: '12px',
+              padding: '20px',
+              textAlign: 'center',
+            }}>
+              <div style={{ fontSize: '28px', marginBottom: '10px' }}>🌍</div>
+              <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', lineHeight: 1.6, margin: 0 }}>
+                Click a city pin on the globe or choose a room from the right panel to see your interviewer's current mood.
+              </p>
+            </div>
+          )}
+
+          {/* Mood card — shown when region is selected and time loaded */}
+          {region && timeContext && (
+            <div style={{
+              background: 'rgba(5,21,37,0.85)',
+              border: '1px solid rgba(0,210,255,0.2)',
+              borderRadius: '12px',
+              padding: '18px',
+              backdropFilter: 'blur(20px)',
+            }}>
+              <div style={{
+                fontSize: '10px', letterSpacing: '2.5px', color: '#00d2ff',
+                fontFamily: 'var(--font-display)', fontWeight: 600,
+                textTransform: 'uppercase', marginBottom: '12px',
+                display: 'flex', alignItems: 'center', gap: '6px',
+              }}>
+                <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#00ffcc', display: 'inline-block', animation: 'pulse 2s infinite' }} />
+                Live Room Context
+              </div>
+              <p style={{
+                fontSize: '13px', color: 'rgba(255,255,255,0.7)',
+                lineHeight: 1.7, margin: 0, fontStyle: 'italic',
+              }}>
+                {timeContext}
+              </p>
             </div>
           )}
 

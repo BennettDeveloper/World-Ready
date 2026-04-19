@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -20,11 +21,15 @@ public class GoogleMapsService {
             String url = "https://maps.googleapis.com/maps/api/geocode/json?address="
                     + city + "&key=" + apiKey;
 
-            Map response = restTemplate.getForObject(url, Map.class);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> response = restTemplate.getForObject(url, Map.class);
 
-            Map result = (Map) ((java.util.List) response.get("results")).get(0);
-            Map geometry = (Map) result.get("geometry");
-            Map location = (Map) geometry.get("location");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> result = (Map<String, Object>) ((List<?>) response.get("results")).get(0);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> geometry = (Map<String, Object>) result.get("geometry");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> location = (Map<String, Object>) geometry.get("location");
 
             double lat = ((Number) location.get("lat")).doubleValue();
             double lng = ((Number) location.get("lng")).doubleValue();

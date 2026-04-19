@@ -26,17 +26,25 @@ public class ScoringService {
     }
 
     public AnalyzeResponse analyze(String region, String role, List<InterviewMessage> history) {
-        return analyze(region, role, history, null);
+        return analyze(region, role, history, null, null);
     }
 
     public AnalyzeResponse analyze(String region, String role, List<InterviewMessage> history, String resumeText) {
+        return analyze(region, role, history, resumeText, null);
+    }
+
+    public AnalyzeResponse analyze(String region, String role, List<InterviewMessage> history, String resumeText, String timeContext) {
         Persona persona = personaService.getPersona(region);
 
         String historyText = history == null ? "" : history.stream()
                 .map(msg -> msg.getSender() + ": " + msg.getText())
                 .collect(Collectors.joining("\n"));
 
-        String systemPrompt = persona.getPrompt() + """
+        String timeNote = (timeContext != null && !timeContext.isBlank())
+                ? "IMPORTANT CONTEXT: " + timeContext + " Factor this into your cultural alignment and patience scoring.\n\n"
+                : "";
+
+        String systemPrompt = timeNote + persona.getPrompt() + """
                 
                 Analyze this interview and return ONLY valid JSON.
                 No markdown. No explanation. No code fences.

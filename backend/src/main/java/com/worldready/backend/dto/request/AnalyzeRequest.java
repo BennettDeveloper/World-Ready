@@ -22,4 +22,8 @@ public class AnalyzeRequest {
     private String resumeText;
     public String getResumeText() { return resumeText; }
     public void setResumeText(String resumeText) { this.resumeText = resumeText; }
+
+    private String timeContext;
+    public String getTimeContext() { return timeContext; }
+    public void setTimeContext(String timeContext) { this.timeContext = timeContext; }
 }

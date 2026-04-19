@@ -25,10 +25,14 @@ public class InterviewService {
         this.sessionService = sessionService;
     }
 
-    public StartInterviewResponse startInterview(String region, String role) {
+    public StartInterviewResponse startInterview(String region, String role, String timeContext) {
         Persona persona = personaService.getPersona(region);
 
         InterviewSession session = sessionService.createSession(region, role);
+
+        String systemPrompt = (timeContext != null && !timeContext.isBlank())
+                ? "IMPORTANT CONTEXT: " + timeContext + " Adjust your interviewer persona's mood, patience level, and energy accordingly.\n\n" + persona.getPrompt()
+                : persona.getPrompt();
 
         String userPrompt = """
                 You are interviewing a candidate for a %s position.
@@ -36,7 +40,7 @@ public class InterviewService {
                 Return only the question, nothing else.
                 """.formatted(role);
 
-        String question = claudeService.sendPrompt(persona.getPrompt(), userPrompt);
+        String question = claudeService.sendPrompt(systemPrompt, userPrompt);
 
         session.getConversationHistory().add(new InterviewMessage("AI", question));
         session.setQuestionNumber(1);
@@ -50,12 +54,16 @@ public class InterviewService {
         );
     }
 
-    public NextQuestionResponse nextQuestion(String region, String role, List<InterviewMessage> history, int questionNumber) {
+    public NextQuestionResponse nextQuestion(String region, String role, List<InterviewMessage> history, int questionNumber, String timeContext) {
         if (questionNumber >= 3) {
             return new NextQuestionResponse(null, true);
         }
 
         Persona persona = personaService.getPersona(region);
+
+        String systemPrompt = (timeContext != null && !timeContext.isBlank())
+                ? "IMPORTANT CONTEXT: " + timeContext + " Adjust your interviewer persona's mood, patience level, and energy accordingly.\n\n" + persona.getPrompt()
+                : persona.getPrompt();
 
         String historyText = history == null ? "" : history.stream()
                 .map(msg -> msg.getSender() + ": " + msg.getText())
@@ -71,7 +79,7 @@ public class InterviewService {
                 Return only the question, nothing else.
                 """.formatted(role, historyText);
 
-        String question = claudeService.sendPrompt(persona.getPrompt(), userPrompt);
+        String question = claudeService.sendPrompt(systemPrompt, userPrompt);
 
         return new NextQuestionResponse(question, false);
     }

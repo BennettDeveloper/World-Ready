@@ -1,8 +1,45 @@
 import { useNavigate } from 'react-router-dom';
 
+function AboutNav() {
+  const navigate = useNavigate();
+  return (
+    <div style={{
+      position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      padding: '0 40px', height: '60px',
+      background: 'rgba(2,13,26,0.9)', backdropFilter: 'blur(20px)',
+      borderBottom: '1px solid rgba(0,210,255,0.1)',
+    }}>
+      <button onClick={() => navigate('/')} style={{
+        display: 'flex', alignItems: 'center', gap: '8px',
+        background: 'none', border: 'none', cursor: 'pointer',
+        color: 'rgba(255,255,255,0.55)', fontSize: '14px', fontWeight: 500,
+        fontFamily: "'Space Grotesk', sans-serif", padding: 0,
+        transition: 'color 0.2s',
+      }}
+        onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+        onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.55)'}
+      >
+        ← Back
+      </button>
+      <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: '16px', color: '#00d2ff' }}>
+        🌐 World Ready
+      </span>
+      <button onClick={() => navigate('/login')} style={{
+        background: 'rgba(0,210,255,0.1)', border: '1px solid rgba(0,210,255,0.3)',
+        borderRadius: '8px', color: '#00d2ff', padding: '8px 18px',
+        fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+        fontFamily: "'Space Grotesk', sans-serif",
+      }}>
+        Sign In
+      </button>
+    </div>
+  );
+}
+
 const TEAM = [
-  { name: 'Chris Bennett', role: 'Back End Developer & Product Owner', flag: '🇺🇸', initial: 'C' },
-  { name: 'Bobby Money', role: 'Project Lead & Front End Developer', flag: '🇺🇸', initial: 'B' },
+  { name: 'Chris Bennett', role: 'AI Model Lead & Product Owner', flag: '🇺🇸', initial: 'C' },
+  { name: 'Bobby Money', role: 'Project Lead & Full-Stack Developer', flag: '🇺🇸', initial: 'B' },
   { name: 'Derwin Bell', role: 'Back End Lead & Systems', flag: '🇺🇸', initial: 'D' },
   { name: 'James Kollilon Barclay III', role: 'Front End Developer & Design Lead', flag: '🇺🇸', initial: 'J' },
 ];
@@ -19,6 +56,7 @@ export default function AboutPage() {
 
   return (
     <div className="about-page">
+      <AboutNav />
       {/* Hero */}
       <div className="about-hero">
         <div className="about-hero-bg-orbs">

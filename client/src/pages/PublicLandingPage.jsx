@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { REGIONS } from '../data/regions';
 import { getCityTimeContext } from '../utils/maps';
 
-const Globe = lazy(() => import('../components/WorldMap'));
+const GlobeComponent = lazy(() => import('../components/WorldMap'));
 
 const REGION_LIST = Object.entries(REGIONS);
 
@@ -13,7 +13,6 @@ const REVIEWS = [
     role: 'Software Engineer',
     region: 'Tokyo',
     flag: '🇯🇵',
-    stars: 5,
     text: '"I walked in calm and composed. I got the offer. This app is the real deal."',
   },
   {
@@ -21,7 +20,6 @@ const REVIEWS = [
     role: 'Product Manager',
     region: 'London',
     flag: '🇬🇧',
-    stars: 5,
     text: '"After practicing with James Whitmore for two weeks, my actual London panel felt easy by comparison."',
   },
   {
@@ -29,454 +27,230 @@ const REVIEWS = [
     role: 'Business Development',
     region: 'New York',
     flag: '🇺🇸',
-    stars: 5,
     text: '"After two weeks I could deliver tight, metrics-backed answers under pressure. Got the offer same day."',
   },
 ];
 
 const STEPS = [
-  { num: '01', icon: '🌍', title: 'Select your room', desc: 'Pick a city. Meet your interviewer. Each room has a unique persona, culture, and style.' },
+  { num: '01', icon: '🌍', title: 'Select your room', desc: 'Pick a city. Meet your interviewer. Each room has a unique persona, culture, and communication style.' },
   { num: '02', icon: '💼', title: 'Enter your role', desc: 'Tell us the job you\'re after. Optionally add a target company for tailored questions.' },
-  { num: '03', icon: '🎯', title: 'Face the interview', desc: 'AI evaluates cultural fluency, clarity, confidence, and role alignment — then coaches you.' },
+  { num: '03', icon: '🎯', title: 'Face the interview', desc: 'AI evaluates cultural fluency, clarity, confidence, and role alignment — then coaches you toward the offer.' },
 ];
 
-const styles = {
-  page: {
-    background: '#020d1a',
-    minHeight: '100vh',
-    width: '100%',
-    alignSelf: 'stretch',
-    fontFamily: "'Space Grotesk', sans-serif",
-    color: '#fff',
-    overflowX: 'hidden',
-  },
+// Canvas particle + radar background
+function useCanvas(canvasRef) {
+  const animRef = useRef(null);
+  const particlesRef = useRef([]);
+  const sweepAngleRef = useRef(0);
 
-  // NAV
-  nav: {
-    position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '0 48px',
-    height: '64px',
-    background: 'rgba(2,13,26,0.85)',
-    backdropFilter: 'blur(20px)',
-    borderBottom: '1px solid rgba(0,210,255,0.1)',
-  },
-  navLogo: {
-    fontFamily: "'Syne', sans-serif",
-    fontWeight: 800,
-    fontSize: '18px',
-    color: '#00d2ff',
-    letterSpacing: '0.5px',
-    display: 'flex', alignItems: 'center', gap: '8px',
-  },
-  navLinks: {
-    display: 'flex', alignItems: 'center', gap: '32px',
-  },
-  navLink: {
-    color: 'rgba(255,255,255,0.6)',
-    fontSize: '14px', fontWeight: 500,
-    textDecoration: 'none',
-    cursor: 'pointer',
-    transition: 'color 0.2s',
-    background: 'none', border: 'none', padding: 0,
-  },
-  navCta: {
-    background: 'rgba(0,210,255,0.12)',
-    border: '1px solid rgba(0,210,255,0.35)',
-    borderRadius: '8px',
-    color: '#00d2ff',
-    padding: '8px 20px',
-    fontSize: '14px', fontWeight: 600,
-    cursor: 'pointer',
-    transition: 'all 0.2s',
-    fontFamily: "'Space Grotesk', sans-serif",
-  },
+  const init = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const W = canvas.width = window.innerWidth;
+    const H = canvas.height = window.innerHeight * 3;
 
-  // HERO
-  hero: {
-    position: 'relative',
-    minHeight: '100vh',
-    display: 'flex',
-    alignItems: 'center',
-    overflow: 'hidden',
-    paddingTop: '64px',
-  },
-  heroGrid: {
-    position: 'absolute', inset: 0, zIndex: 0,
-    backgroundImage: 'linear-gradient(rgba(10,58,90,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(10,58,90,0.3) 1px, transparent 1px)',
-    backgroundSize: '60px 60px',
-    pointerEvents: 'none',
-  },
-  heroGlow: {
-    position: 'absolute', top: '10%', left: '30%',
-    width: '600px', height: '600px',
-    background: 'radial-gradient(ellipse, rgba(0,210,255,0.07) 0%, transparent 70%)',
-    pointerEvents: 'none', zIndex: 0,
-  },
-  heroGlow2: {
-    position: 'absolute', bottom: '10%', right: '10%',
-    width: '400px', height: '400px',
-    background: 'radial-gradient(ellipse, rgba(196,114,240,0.06) 0%, transparent 70%)',
-    pointerEvents: 'none', zIndex: 0,
-  },
-  heroContent: {
-    position: 'relative', zIndex: 2,
-    width: '100%',
-    display: 'flex',
-    alignItems: 'center',
-    padding: '0 48px',
-    gap: '0',
-  },
-  heroLeft: {
-    flex: '0 0 480px',
-    maxWidth: '480px',
-    zIndex: 3,
-  },
-  heroLabel: {
-    fontSize: '11px',
-    letterSpacing: '3px',
-    color: '#00d2ff',
-    textTransform: 'uppercase',
-    fontWeight: 600,
-    fontFamily: "'Syne', sans-serif",
-    marginBottom: '24px',
-    display: 'block',
-  },
-  heroH1: {
-    fontFamily: "'Syne', sans-serif",
-    fontWeight: 800,
-    fontSize: '56px',
-    lineHeight: 1.05,
-    margin: 0,
-    marginBottom: '24px',
-  },
-  heroH1Line1: {
-    display: 'block',
-    color: '#fff',
-  },
-  heroH1Line2: {
-    display: 'block',
-    background: 'linear-gradient(90deg, #00d2ff, #c472f0)',
-    WebkitBackgroundClip: 'text',
-    WebkitTextFillColor: 'transparent',
-    backgroundClip: 'text',
-  },
-  heroSub: {
-    color: 'rgba(255,255,255,0.65)',
-    fontSize: '17px',
-    lineHeight: 1.6,
-    marginBottom: '40px',
-    fontWeight: 400,
-  },
-  heroCtas: {
-    display: 'flex', gap: '16px', alignItems: 'center',
-    flexWrap: 'wrap',
-  },
-  btnPrimary: {
-    background: 'linear-gradient(135deg, #00d2ff, #0099cc)',
-    border: 'none',
-    borderRadius: '10px',
-    color: '#020d1a',
-    padding: '14px 28px',
-    fontSize: '15px', fontWeight: 700,
-    cursor: 'pointer',
-    fontFamily: "'Space Grotesk', sans-serif",
-    letterSpacing: '0.3px',
-    boxShadow: '0 0 30px rgba(0,210,255,0.3)',
-    transition: 'all 0.2s',
-  },
-  btnGhost: {
-    background: 'transparent',
-    border: '1px solid rgba(255,255,255,0.2)',
-    borderRadius: '10px',
-    color: 'rgba(255,255,255,0.7)',
-    padding: '14px 28px',
-    fontSize: '15px', fontWeight: 500,
-    cursor: 'pointer',
-    fontFamily: "'Space Grotesk', sans-serif",
-    transition: 'all 0.2s',
-  },
+    particlesRef.current = Array.from({ length: 60 }, () => ({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      vx: (Math.random() - 0.5) * 0.3,
+      vy: (Math.random() - 0.5) * 0.3,
+      r: Math.random() * 1.2 + 0.3,
+    }));
+  }, [canvasRef]);
 
-  // GLOBE STAGE
-  heroGlobeWrap: {
-    flex: 1,
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-    minHeight: '600px',
-  },
+  const draw = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width;
+    const H = canvas.height;
 
-  // TIME BADGES
-  timeBadgesContainer: {
-    position: 'absolute',
-    inset: 0,
-    pointerEvents: 'none',
-    zIndex: 4,
-  },
-  timeBadge: {
-    position: 'absolute',
-    background: 'rgba(5,21,37,0.9)',
-    border: '1px solid rgba(0,210,255,0.3)',
-    borderRadius: '20px',
-    padding: '6px 14px',
-    display: 'flex', alignItems: 'center', gap: '8px',
-    backdropFilter: 'blur(10px)',
-    animation: 'fadeInFloat 0.6s ease forwards',
-    boxShadow: '0 4px 20px rgba(0,210,255,0.1)',
-  },
-  timeBadgeCity: {
-    fontSize: '12px', fontWeight: 600,
-    color: '#fff',
-    fontFamily: "'Space Grotesk', sans-serif",
-  },
-  timeBadgeDot: {
-    width: '3px', height: '3px',
-    borderRadius: '50%', background: 'rgba(0,210,255,0.6)',
-  },
-  timeBadgeTime: {
-    fontSize: '12px', fontWeight: 500,
-    color: '#00d2ff',
-    fontFamily: "'Space Grotesk', sans-serif",
-  },
+    ctx.clearRect(0, 0, W, H);
 
-  // SECTION COMMON
-  section: {
-    padding: '100px 48px',
-    position: 'relative',
-  },
-  sectionLabel: {
-    fontSize: '11px', letterSpacing: '3px',
-    color: '#00d2ff', textTransform: 'uppercase',
-    fontWeight: 600, fontFamily: "'Syne', sans-serif",
-    marginBottom: '12px', display: 'block',
-    textAlign: 'center',
-  },
-  sectionTitle: {
-    fontFamily: "'Syne', sans-serif",
-    fontWeight: 800, fontSize: '40px',
-    color: '#fff', textAlign: 'center',
-    margin: '0 0 60px',
-    lineHeight: 1.1,
-  },
+    // Radial grid — centered at top third (hero area)
+    const cx = W / 2;
+    const cy = H * 0.15;
+    const maxR = Math.max(W, H * 0.4);
+    for (let i = 1; i <= 5; i++) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, (maxR / 5) * i, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(0,210,255,${0.025 - i * 0.003})`;
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+    }
+    for (let i = 0; i < 12; i++) {
+      const angle = (i / 12) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + Math.cos(angle) * maxR, cy + Math.sin(angle) * maxR);
+      ctx.strokeStyle = 'rgba(0,210,255,0.018)';
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+    }
 
-  // ROOMS SECTION
-  roomsDivider: {
-    height: '1px',
-    background: 'linear-gradient(90deg, transparent, rgba(0,210,255,0.2), transparent)',
-    margin: '0 48px',
-  },
-  roomsGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(4, 1fr)',
-    gap: '20px',
-    maxWidth: '1200px',
-    margin: '0 auto',
-  },
-  roomCard: {
-    background: 'rgba(5,21,37,0.85)',
-    border: '1px solid rgba(0,210,255,0.15)',
-    borderRadius: '16px',
-    padding: '24px',
-    cursor: 'pointer',
-    transition: 'all 0.3s ease',
-    position: 'relative',
-    overflow: 'hidden',
-    backdropFilter: 'blur(20px)',
-  },
-  roomCardFlag: {
-    fontSize: '36px', display: 'block', marginBottom: '12px',
-  },
-  roomCardCity: {
-    fontFamily: "'Syne', sans-serif",
-    fontWeight: 700, fontSize: '18px',
-    color: '#fff', marginBottom: '4px',
-  },
-  roomCardInterviewer: {
-    fontSize: '13px', color: 'rgba(255,255,255,0.5)',
-    marginBottom: '12px',
-  },
-  roomCardBadge: {
-    display: 'inline-block',
-    background: 'rgba(0,210,255,0.1)',
-    border: '1px solid rgba(0,210,255,0.25)',
-    borderRadius: '20px',
-    padding: '3px 10px',
-    fontSize: '10px', fontWeight: 600,
-    color: '#00d2ff', letterSpacing: '0.5px',
-    textTransform: 'uppercase',
-    marginBottom: '12px',
-  },
-  roomCardTime: {
-    fontSize: '12px', color: 'rgba(255,255,255,0.4)',
-    fontFamily: "'Space Grotesk', sans-serif",
-  },
-  roomCardPreview: {
-    marginTop: '12px',
-    fontSize: '12px',
-    color: 'rgba(255,255,255,0.5)',
-    lineHeight: 1.5,
-    fontStyle: 'italic',
-  },
+    // Radar sweep
+    sweepAngleRef.current += 0.006;
+    const sweepGrad = ctx.createConicalGradient
+      ? null
+      : null;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(sweepAngleRef.current);
+    const grad = ctx.createLinearGradient(0, 0, maxR * 0.6, 0);
+    grad.addColorStop(0, 'rgba(0,210,255,0.07)');
+    grad.addColorStop(1, 'rgba(0,210,255,0)');
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.arc(0, 0, maxR * 0.6, -0.25, 0.25);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.restore();
 
-  // HOW IT WORKS
-  howSection: {
-    padding: '100px 48px',
-    background: 'rgba(0,210,255,0.02)',
-    borderTop: '1px solid rgba(0,210,255,0.08)',
-    borderBottom: '1px solid rgba(0,210,255,0.08)',
-  },
-  stepsGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(3, 1fr)',
-    gap: '32px',
-    maxWidth: '900px',
-    margin: '0 auto',
-    position: 'relative',
-  },
-  stepConnector: {
-    position: 'absolute',
-    top: '40px', left: '33%', right: '33%',
-    height: '1px',
-    background: 'linear-gradient(90deg, transparent, rgba(0,210,255,0.3), transparent)',
-    pointerEvents: 'none',
-  },
-  stepCard: {
-    background: 'rgba(5,21,37,0.85)',
-    border: '1px solid rgba(0,210,255,0.15)',
-    borderRadius: '16px',
-    padding: '32px 24px',
-    textAlign: 'center',
-    backdropFilter: 'blur(20px)',
-    position: 'relative',
-  },
-  stepNum: {
-    position: 'absolute', top: '16px', right: '20px',
-    fontFamily: "'Syne', sans-serif",
-    fontWeight: 800, fontSize: '11px',
-    color: 'rgba(0,210,255,0.3)',
-    letterSpacing: '1px',
-  },
-  stepIcon: {
-    fontSize: '36px', display: 'block', marginBottom: '16px',
-  },
-  stepTitle: {
-    fontFamily: "'Syne', sans-serif",
-    fontWeight: 700, fontSize: '16px',
-    color: '#fff', marginBottom: '10px',
-  },
-  stepDesc: {
-    fontSize: '13px', color: 'rgba(255,255,255,0.5)',
-    lineHeight: 1.6,
-  },
+    // Radial center glow
+    const radGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR * 0.5);
+    radGrad.addColorStop(0, 'rgba(0,210,255,0.04)');
+    radGrad.addColorStop(1, 'rgba(0,210,255,0)');
+    ctx.fillStyle = radGrad;
+    ctx.fillRect(0, 0, W, H);
 
-  // REVIEWS
-  reviewsGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(3, 1fr)',
-    gap: '24px',
-    maxWidth: '1000px',
-    margin: '0 auto',
-  },
-  reviewCard: {
-    background: 'rgba(5,21,37,0.85)',
-    border: '1px solid rgba(196,114,240,0.15)',
-    borderRadius: '16px',
-    padding: '28px',
-    backdropFilter: 'blur(20px)',
-  },
-  reviewStars: {
-    color: '#f59e0b', fontSize: '14px',
-    marginBottom: '16px', display: 'block',
-    letterSpacing: '2px',
-  },
-  reviewText: {
-    fontSize: '14px', color: 'rgba(255,255,255,0.75)',
-    lineHeight: 1.7, marginBottom: '20px',
-    fontStyle: 'italic',
-  },
-  reviewAuthor: {
-    display: 'flex', alignItems: 'center', gap: '10px',
-  },
-  reviewAvatar: {
-    width: '32px', height: '32px',
-    borderRadius: '50%',
-    background: 'linear-gradient(135deg, rgba(0,210,255,0.2), rgba(196,114,240,0.2))',
-    border: '1px solid rgba(0,210,255,0.25)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: '13px', fontWeight: 700, color: '#00d2ff',
-    fontFamily: "'Syne', sans-serif",
-  },
-  reviewName: {
-    fontSize: '13px', fontWeight: 600, color: '#fff',
-  },
-  reviewMeta: {
-    fontSize: '11px', color: 'rgba(255,255,255,0.4)',
-  },
+    // Particles
+    const pts = particlesRef.current;
+    pts.forEach(p => {
+      p.x += p.vx;
+      p.y += p.vy;
+      if (p.x < 0 || p.x > W) p.vx *= -1;
+      if (p.y < 0 || p.y > H) p.vy *= -1;
+    });
 
-  // FINAL CTA
-  ctaSection: {
-    padding: '120px 48px',
-    textAlign: 'center',
-    background: 'rgba(0,210,255,0.02)',
-    borderTop: '1px solid rgba(0,210,255,0.08)',
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  ctaGlow: {
-    position: 'absolute', top: '50%', left: '50%',
-    transform: 'translate(-50%, -50%)',
-    width: '600px', height: '300px',
-    background: 'radial-gradient(ellipse, rgba(0,210,255,0.06) 0%, transparent 70%)',
-    pointerEvents: 'none',
-  },
-  ctaSub: {
-    fontSize: '16px', color: 'rgba(255,255,255,0.5)',
-    marginBottom: '16px', letterSpacing: '0.3px',
-    position: 'relative', zIndex: 1,
-  },
-  ctaTitle: {
-    fontFamily: "'Syne', sans-serif",
-    fontWeight: 800, fontSize: '42px',
-    color: '#fff',
-    marginBottom: '40px',
-    lineHeight: 1.15,
-    position: 'relative', zIndex: 1,
-  },
-  ctaTitleHighlight: {
-    background: 'linear-gradient(90deg, #00d2ff, #c472f0)',
-    WebkitBackgroundClip: 'text',
-    WebkitTextFillColor: 'transparent',
-    backgroundClip: 'text',
-  },
+    // Connections
+    for (let i = 0; i < pts.length; i++) {
+      for (let j = i + 1; j < pts.length; j++) {
+        const dx = pts[i].x - pts[j].x;
+        const dy = pts[i].y - pts[j].y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 110) {
+          ctx.beginPath();
+          ctx.moveTo(pts[i].x, pts[i].y);
+          ctx.lineTo(pts[j].x, pts[j].y);
+          ctx.strokeStyle = `rgba(0,210,255,${0.06 * (1 - dist / 110)})`;
+          ctx.lineWidth = 0.4;
+          ctx.stroke();
+        }
+      }
+    }
 
-  // FOOTER
-  footer: {
-    padding: '32px 48px',
-    borderTop: '1px solid rgba(0,210,255,0.08)',
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    color: 'rgba(255,255,255,0.3)',
-    fontSize: '13px',
-  },
-};
+    // Dots
+    pts.forEach(p => {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0,210,255,0.35)';
+      ctx.fill();
+    });
 
-// Badge positions around the globe (percentage-based)
+    animRef.current = requestAnimationFrame(draw);
+  }, [canvasRef]);
+
+  useEffect(() => {
+    init();
+    draw();
+    const handleResize = () => { init(); };
+    window.addEventListener('resize', handleResize);
+    return () => {
+      cancelAnimationFrame(animRef.current);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [init, draw]);
+}
+
+// Badge positions around the globe (% of globe container)
 const BADGE_POSITIONS = [
-  { key: 'london',   top: '18%', left: '8%' },
-  { key: 'paris',    top: '22%', left: '16%' },
-  { key: 'dubai',    top: '38%', left: '6%' },
-  { key: 'mumbai',   top: '52%', left: '14%' },
-  { key: 'tokyo',    top: '20%', right: '8%' },
-  { key: 'beijing',  top: '30%', right: '16%' },
-  { key: 'sydney',   top: '68%', right: '8%' },
-  { key: 'newyork',  top: '60%', left: '4%' },
+  { key: 'london',  style: { top: '12%',  left: '4%'  } },
+  { key: 'paris',   style: { top: '22%',  left: '14%' } },
+  { key: 'dubai',   style: { top: '48%',  left: '3%'  } },
+  { key: 'mumbai',  style: { top: '62%',  left: '16%' } },
+  { key: 'tokyo',   style: { top: '10%',  right: '4%' } },
+  { key: 'beijing', style: { top: '28%',  right: '12%'} },
+  { key: 'sydney',  style: { top: '70%',  right: '4%' } },
+  { key: 'newyork', style: { top: '56%',  right: '16%'} },
 ];
+
+const INTRO_PHRASES = [
+  "Culture isn't a bonus question.",
+  "It's the whole test.",
+];
+
+function IntroSplash({ onDone }) {
+  const [phase, setPhase] = useState(0); // 0,1 = phrase index; 2 = fading out splash
+
+  useEffect(() => {
+    // Each phrase: 400ms fade-in, 900ms hold, 400ms fade-out → 1700ms total per phrase
+    const t1 = setTimeout(() => setPhase(1), 1700);
+    const t2 = setTimeout(() => setPhase(2), 3400);
+    const t3 = setTimeout(onDone, 3900);
+    return () => [t1, t2, t3].forEach(clearTimeout);
+  }, [onDone]);
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 1000,
+      background: '#020d1a',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      opacity: phase === 2 ? 0 : 1,
+      transition: phase === 2 ? 'opacity 0.5s ease' : 'none',
+      pointerEvents: 'none',
+    }}>
+      {/* subtle grid behind text */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        backgroundImage: 'linear-gradient(rgba(10,58,90,0.2) 1px, transparent 1px), linear-gradient(90deg, rgba(10,58,90,0.2) 1px, transparent 1px)',
+        backgroundSize: '60px 60px',
+      }} />
+      <div style={{ position: 'relative', textAlign: 'center', padding: '0 40px', width: '100%', maxWidth: '700px' }}>
+        {INTRO_PHRASES.map((text, i) => (
+          <p
+            key={i}
+            style={{
+              fontFamily: "'Syne', sans-serif",
+              fontWeight: 700,
+              fontSize: 'clamp(26px, 4vw, 42px)',
+              color: i === 0 ? '#ffffff' : '#00d2ff',
+              letterSpacing: '-0.5px',
+              lineHeight: 1.2,
+              margin: 0,
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: 'max-content',
+              maxWidth: '90vw',
+              opacity: phase === i ? 1 : 0,
+              transition: 'opacity 0.4s ease',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {text}
+          </p>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function PublicLandingPage({ user }) {
   const navigate = useNavigate();
+  const canvasRef = useRef(null);
+  const roomsRef = useRef(null);
+  const [showIntro, setShowIntro] = useState(true);
   const [cityTimes, setCityTimes] = useState({});
   const [hoveredRoom, setHoveredRoom] = useState(null);
-  const roomsRef = useRef(null);
+  const [navScrolled, setNavScrolled] = useState(false);
+
+  const handleIntroDone = useCallback(() => {
+    setShowIntro(false);
+  }, []);
+
+  useCanvas(canvasRef);
 
   useEffect(() => {
     async function loadTimes() {
@@ -494,6 +268,12 @@ export default function PublicLandingPage({ user }) {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    const onScroll = () => setNavScrolled(window.scrollY > 40);
+    window.addEventListener('scroll', onScroll);
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
   function handleBegin() {
     navigate(user ? '/home' : '/login');
   }
@@ -508,220 +288,400 @@ export default function PublicLandingPage({ user }) {
   }
 
   return (
-    <div style={styles.page}>
+    <div style={{ background: '#020d1a', minHeight: '100vh', width: '100%', alignSelf: 'stretch', fontFamily: "'Space Grotesk', sans-serif", color: '#fff', overflowX: 'hidden', position: 'relative' }}>
+      {showIntro && <IntroSplash onDone={handleIntroDone} />}
+
+      {/* Global animation keyframes */}
       <style>{`
-        @keyframes fadeInFloat {
-          from { opacity: 0; transform: translateY(8px); }
+        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Space+Grotesk:wght@300;400;500;600&display=swap');
+
+        @keyframes fadeUp {
+          from { opacity: 0; transform: translateY(24px); }
           to   { opacity: 1; transform: translateY(0); }
         }
-        @keyframes pulse-glow {
-          0%, 100% { box-shadow: 0 0 30px rgba(0,210,255,0.3); }
-          50%       { box-shadow: 0 0 50px rgba(0,210,255,0.5); }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to   { opacity: 1; }
         }
+        @keyframes floatBadge {
+          0%, 100% { transform: translateY(0px); }
+          50%       { transform: translateY(-6px); }
+        }
+        @keyframes pulse-dot {
+          0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(0,210,255,0.4); }
+          50%       { opacity: 0.7; box-shadow: 0 0 0 6px rgba(0,210,255,0); }
+        }
+        @keyframes sweep-line {
+          from { transform: scaleX(0); }
+          to   { transform: scaleX(1); }
+        }
+        .wr-nav-link:hover { color: #fff !important; }
         .wr-room-card:hover {
-          transform: translateY(-6px) !important;
-          border-color: rgba(0,210,255,0.35) !important;
-          box-shadow: 0 16px 40px rgba(0,210,255,0.12) !important;
+          transform: translateY(-10px) !important;
+          border-color: rgba(0,210,255,0.45) !important;
+          box-shadow: 0 24px 60px rgba(0,210,255,0.14), 0 0 0 1px rgba(0,210,255,0.2) !important;
         }
         .wr-btn-primary:hover {
           transform: translateY(-2px);
-          box-shadow: 0 0 50px rgba(0,210,255,0.45) !important;
+          box-shadow: 0 0 60px rgba(0,210,255,0.5) !important;
         }
         .wr-btn-ghost:hover {
           border-color: rgba(255,255,255,0.4) !important;
           color: #fff !important;
+          background: rgba(255,255,255,0.04) !important;
         }
-        .wr-nav-link:hover { color: #fff !important; }
+        .wr-step-card:hover {
+          border-color: rgba(0,210,255,0.3) !important;
+          transform: translateY(-4px);
+        }
+        .wr-review-card:hover {
+          border-color: rgba(196,114,240,0.35) !important;
+          transform: translateY(-4px);
+        }
+        .wr-room-card { transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1) !important; }
+        .wr-step-card { transition: all 0.25s ease; }
+        .wr-review-card { transition: all 0.25s ease; }
       `}</style>
 
-      {/* NAV */}
-      <nav style={styles.nav}>
-        <div style={styles.navLogo}>
-          <span>🌐</span>
-          <span>World Ready</span>
-        </div>
-        <div style={styles.navLinks}>
-          <button className="wr-nav-link" style={styles.navLink} onClick={scrollToRooms}>Rooms</button>
-          <button className="wr-nav-link" style={styles.navLink} onClick={() => navigate('/about')}>About</button>
-          <button className="wr-nav-link" style={styles.navLink} onClick={() => navigate('/leaderboard')}>Leaderboard</button>
-        </div>
-        <div style={{ display: 'flex', gap: '12px' }}>
-          {user ? (
-            <button className="wr-btn-primary" style={styles.btnPrimary} onClick={() => navigate('/home')}>
-              Open App →
-            </button>
-          ) : (
-            <>
-              <button className="wr-nav-link" style={styles.navLink} onClick={() => navigate('/login')}>Sign In</button>
-              <button className="wr-btn-primary" style={{ ...styles.navCta }} onClick={() => navigate('/register')}>Get Started</button>
-            </>
-          )}
-        </div>
-      </nav>
+      {/* Canvas background — fixed, full-page */}
+      <canvas
+        ref={canvasRef}
+        style={{
+          position: 'fixed', top: 0, left: 0,
+          width: '100%', height: '100%',
+          pointerEvents: 'none', zIndex: 0,
+        }}
+      />
 
-      {/* HERO */}
-      <section style={styles.hero}>
-        <div style={styles.heroGrid} />
-        <div style={styles.heroGlow} />
-        <div style={styles.heroGlow2} />
+      {/* Grid texture overlay */}
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none',
+        backgroundImage: 'linear-gradient(rgba(10,58,90,0.25) 1px, transparent 1px), linear-gradient(90deg, rgba(10,58,90,0.25) 1px, transparent 1px)',
+        backgroundSize: '60px 60px',
+      }} />
 
-        <div style={styles.heroContent}>
-          {/* Left copy */}
-          <div style={styles.heroLeft}>
-            <span style={styles.heroLabel}>World Ready · AI Interview Simulator</span>
-            <h1 style={styles.heroH1}>
-              <span style={styles.heroH1Line1}>Culture isn't a<br />bonus question.</span>
-              <span style={styles.heroH1Line2}>It's the whole test.</span>
-            </h1>
-            <p style={styles.heroSub}>
-              8 cities. 8 interviewers. One AI that knows exactly what time it is in the room.
-            </p>
-            <div style={styles.heroCtas}>
-              <button className="wr-btn-primary" style={styles.btnPrimary} onClick={handleBegin}>
-                Begin Your Interview →
-              </button>
-              <button className="wr-btn-ghost" style={styles.btnGhost} onClick={scrollToRooms}>
-                See the rooms ↓
-              </button>
-            </div>
+      {/* Content wrapper — sits above canvas */}
+      <div style={{ position: 'relative', zIndex: 1 }}>
+
+        {/* ── NAV ── */}
+        <nav style={{
+          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '0 56px', height: '68px',
+          background: navScrolled ? 'rgba(2,13,26,0.95)' : 'rgba(2,13,26,0.6)',
+          backdropFilter: 'blur(24px)',
+          borderBottom: navScrolled ? '1px solid rgba(0,210,255,0.12)' : '1px solid transparent',
+          transition: 'all 0.3s ease',
+        }}>
+          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: '18px', color: '#00d2ff', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span>🌐</span><span>World Ready</span>
           </div>
 
-          {/* Globe + time badges */}
-          <div style={styles.heroGlobeWrap}>
-            {/* Time badges */}
-            <div style={styles.timeBadgesContainer}>
-              {BADGE_POSITIONS.map(({ key, ...pos }, i) => {
+          <div style={{ display: 'flex', alignItems: 'center', gap: '40px' }}>
+            {['Rooms', 'About', 'Leaderboard'].map((label, i) => (
+              <button key={label} className="wr-nav-link" onClick={[scrollToRooms, () => navigate('/about'), () => navigate('/leaderboard')][i]} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.55)', fontSize: '14px', fontWeight: 500, cursor: 'pointer', transition: 'color 0.2s', fontFamily: "'Space Grotesk', sans-serif", padding: 0 }}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            {user ? (
+              <button className="wr-btn-primary" onClick={() => navigate('/home')} style={{ background: 'linear-gradient(135deg, #00d2ff, #0099cc)', border: 'none', borderRadius: '10px', color: '#020d1a', padding: '10px 24px', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif", transition: 'all 0.2s' }}>
+                Open App →
+              </button>
+            ) : (
+              <>
+                <button className="wr-nav-link" onClick={() => navigate('/login')} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.55)', fontSize: '14px', fontWeight: 500, cursor: 'pointer', transition: 'color 0.2s', fontFamily: "'Space Grotesk', sans-serif", padding: 0 }}>
+                  Sign In
+                </button>
+                <button onClick={() => navigate('/register')} style={{ background: 'rgba(0,210,255,0.1)', border: '1px solid rgba(0,210,255,0.3)', borderRadius: '8px', color: '#00d2ff', padding: '9px 20px', fontSize: '14px', fontWeight: 600, cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif", transition: 'all 0.2s' }}>
+                  Get Started
+                </button>
+              </>
+            )}
+          </div>
+        </nav>
+
+        {/* ── HERO ── */}
+        <section style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', paddingTop: '68px', position: 'relative', overflow: 'hidden' }}>
+
+          {/* Ambient glow behind globe */}
+          <div style={{ position: 'absolute', top: '50%', left: '58%', transform: 'translate(-50%, -50%)', width: '700px', height: '700px', background: 'radial-gradient(ellipse, rgba(0,210,255,0.08) 0%, transparent 70%)', pointerEvents: 'none' }} />
+          <div style={{ position: 'absolute', top: '30%', left: '20%', width: '500px', height: '400px', background: 'radial-gradient(ellipse, rgba(196,114,240,0.05) 0%, transparent 70%)', pointerEvents: 'none' }} />
+
+          <div style={{ display: 'flex', alignItems: 'center', width: '100%', padding: '0 56px 0 72px' }}>
+
+            {/* LEFT — headline */}
+            <div style={{ flex: '0 0 520px', maxWidth: '520px', animation: 'fadeUp 0.8s ease forwards' }}>
+              <span style={{ display: 'block', fontSize: '11px', letterSpacing: '4px', color: '#00d2ff', textTransform: 'uppercase', fontWeight: 600, fontFamily: "'Syne', sans-serif", marginBottom: '28px', opacity: 0.9 }}>
+                World Ready · AI Interview Simulator
+              </span>
+
+              <h1 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: '44px', lineHeight: 1.15, margin: '0 0 24px', letterSpacing: '-0.5px' }}>
+                <span style={{ display: 'block', color: '#fff' }}>Culture isn't a bonus question.</span>
+                <span style={{ display: 'block', background: 'linear-gradient(90deg, #00d2ff 0%, #c472f0 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+                  It's the whole test.
+                </span>
+              </h1>
+
+              <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '18px', lineHeight: 1.65, marginBottom: '44px', fontWeight: 400, maxWidth: '440px' }}>
+                8 cities. 8 interviewers. One AI that knows exactly what time it is in the room.
+              </p>
+
+              <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                <button className="wr-btn-primary" onClick={handleBegin} style={{ background: 'linear-gradient(135deg, #00d2ff, #0099cc)', border: 'none', borderRadius: '12px', color: '#020d1a', padding: '16px 32px', fontSize: '16px', fontWeight: 700, cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif", letterSpacing: '0.3px', boxShadow: '0 0 40px rgba(0,210,255,0.3)', transition: 'all 0.2s' }}>
+                  Begin Your Interview →
+                </button>
+                <button className="wr-btn-ghost" onClick={scrollToRooms} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.18)', borderRadius: '12px', color: 'rgba(255,255,255,0.65)', padding: '16px 32px', fontSize: '16px', fontWeight: 500, cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif", transition: 'all 0.2s' }}>
+                  See the rooms ↓
+                </button>
+              </div>
+
+              {/* Live indicator */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '36px' }}>
+                <span style={{ display: 'block', width: '6px', height: '6px', borderRadius: '50%', background: '#00ffcc', animation: 'pulse-dot 2s infinite' }} />
+                <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', letterSpacing: '1px' }}>LIVE TIMEZONE DATA · UPDATES EVERY 60s</span>
+              </div>
+            </div>
+
+            {/* RIGHT — Globe + time badges */}
+            <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'relative', minHeight: '640px' }}>
+
+              {/* Time badges */}
+              {BADGE_POSITIONS.map(({ key, style }, i) => {
                 const r = REGIONS[key];
                 const time = cityTimes[key];
-                if (!r || !time) return null;
                 return (
                   <div
                     key={key}
                     style={{
-                      ...styles.timeBadge,
-                      ...pos,
-                      animationDelay: `${i * 0.12}s`,
+                      position: 'absolute',
+                      ...style,
+                      background: 'rgba(5,21,37,0.88)',
+                      border: '1px solid rgba(0,210,255,0.28)',
+                      borderRadius: '24px',
+                      padding: '7px 16px',
+                      display: 'flex', alignItems: 'center', gap: '9px',
+                      backdropFilter: 'blur(12px)',
+                      boxShadow: '0 4px 24px rgba(0,0,0,0.3)',
+                      animation: `fadeIn 0.6s ease ${i * 0.1}s forwards, floatBadge ${3 + i * 0.4}s ease-in-out ${i * 0.2}s infinite`,
+                      opacity: 0,
+                      zIndex: 5,
+                      whiteSpace: 'nowrap',
                     }}
                   >
-                    <span style={{ fontSize: '14px' }}>{r.flag}</span>
-                    <span style={styles.timeBadgeCity}>{r.name}</span>
-                    <div style={styles.timeBadgeDot} />
-                    <span style={styles.timeBadgeTime}>{time}</span>
+                    <span style={{ fontSize: '15px' }}>{r.flag}</span>
+                    <span style={{ fontSize: '12px', fontWeight: 600, color: '#fff', fontFamily: "'Space Grotesk', sans-serif" }}>{r.name}</span>
+                    <span style={{ width: '3px', height: '3px', borderRadius: '50%', background: 'rgba(0,210,255,0.5)', display: 'block' }} />
+                    <span style={{ fontSize: '12px', fontWeight: 500, color: '#00d2ff', fontFamily: "'Space Grotesk', sans-serif" }}>
+                      {time || '—'}
+                    </span>
                   </div>
                 );
               })}
-            </div>
 
-            <Suspense fallback={
-              <div style={{
-                width: 620, height: 540,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: 'rgba(0,210,255,0.4)', fontSize: '14px',
-              }}>
-                Loading globe…
-              </div>
-            }>
-              <Globe selectedRegion={null} onSelectRegion={() => {}} />
-            </Suspense>
+              {/* Globe */}
+              <Suspense fallback={
+                <div style={{ width: 640, height: 580, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(0,210,255,0.3)', fontSize: '13px', letterSpacing: '2px' }}>
+                  LOADING GLOBE…
+                </div>
+              }>
+                <GlobeComponent selectedRegion={null} onSelectRegion={() => {}} />
+              </Suspense>
+            </div>
           </div>
-        </div>
-      </section>
 
-      {/* ROOMS */}
-      <div style={styles.roomsDivider} />
-      <section ref={roomsRef} style={styles.section}>
-        <span style={styles.sectionLabel}>Interview Rooms</span>
-        <h2 style={styles.sectionTitle}>Choose Your Room</h2>
-        <div style={styles.roomsGrid}>
-          {REGION_LIST.map(([key, r]) => (
-            <div
-              key={key}
-              className="wr-room-card"
-              style={styles.roomCard}
-              onClick={() => selectRoom(key)}
-              onMouseEnter={() => setHoveredRoom(key)}
-              onMouseLeave={() => setHoveredRoom(null)}
-            >
-              <span style={styles.roomCardFlag}>{r.flag}</span>
-              <div style={styles.roomCardCity}>{r.name}</div>
-              <div style={styles.roomCardInterviewer}>{r.interviewer}</div>
-              <span style={styles.roomCardBadge}>{r.styleTag}</span>
-              {cityTimes[key] && (
-                <div style={styles.roomCardTime}>
-                  🕐 Local time: {cityTimes[key]}
-                </div>
-              )}
-              {hoveredRoom === key && (
-                <div style={styles.roomCardPreview}>
-                  {r.personality.split('.')[0]}.
-                </div>
-              )}
+          {/* Scroll hint */}
+          <div style={{ position: 'absolute', bottom: '32px', left: '50%', transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', opacity: 0.35, animation: 'fadeIn 1.5s ease 1s forwards' }}>
+            <span style={{ fontSize: '11px', letterSpacing: '3px', color: '#fff' }}>SCROLL</span>
+            <div style={{ width: '1px', height: '40px', background: 'linear-gradient(180deg, rgba(255,255,255,0.4), transparent)' }} />
+          </div>
+        </section>
+
+        {/* ── SECTION DIVIDER ── */}
+        <div style={{ height: '1px', margin: '0 56px', background: 'linear-gradient(90deg, transparent, rgba(0,210,255,0.2), rgba(196,114,240,0.15), transparent)' }} />
+
+        {/* ── ROOMS ── */}
+        <section ref={roomsRef} style={{ padding: '120px 56px' }}>
+          <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+            <div style={{ textAlign: 'center', marginBottom: '72px' }}>
+              <span style={{ display: 'block', fontSize: '11px', letterSpacing: '4px', color: '#00d2ff', textTransform: 'uppercase', fontWeight: 600, fontFamily: "'Syne', sans-serif", marginBottom: '16px' }}>
+                Interview Rooms
+              </span>
+              <h2 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: '44px', color: '#fff', margin: 0, lineHeight: 1.1 }}>
+                Choose Your Room
+              </h2>
+              <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '16px', marginTop: '16px', fontWeight: 400 }}>
+                Each room is a different world. Walk in knowing what to expect.
+              </p>
             </div>
-          ))}
-        </div>
-      </section>
 
-      {/* HOW IT WORKS */}
-      <section style={styles.howSection}>
-        <span style={styles.sectionLabel}>The Process</span>
-        <h2 style={styles.sectionTitle}>How It Works</h2>
-        <div style={styles.stepsGrid}>
-          {STEPS.map((step) => (
-            <div key={step.num} style={styles.stepCard}>
-              <span style={styles.stepNum}>{step.num}</span>
-              <span style={styles.stepIcon}>{step.icon}</span>
-              <div style={styles.stepTitle}>{step.title}</div>
-              <p style={styles.stepDesc}>{step.desc}</p>
-            </div>
-          ))}
-        </div>
-      </section>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px' }}>
+              {REGION_LIST.map(([key, r]) => (
+                <div
+                  key={key}
+                  className="wr-room-card"
+                  onClick={() => selectRoom(key)}
+                  onMouseEnter={() => setHoveredRoom(key)}
+                  onMouseLeave={() => setHoveredRoom(null)}
+                  style={{
+                    background: 'rgba(5,21,37,0.85)',
+                    border: '1px solid rgba(0,210,255,0.12)',
+                    borderRadius: '16px',
+                    padding: '28px 24px',
+                    cursor: 'pointer',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    backdropFilter: 'blur(20px)',
+                    minHeight: '200px',
+                    display: 'flex', flexDirection: 'column',
+                  }}
+                >
+                  {/* Card glow on hover */}
+                  <div style={{
+                    position: 'absolute', inset: 0,
+                    background: 'radial-gradient(ellipse at top left, rgba(0,210,255,0.05) 0%, transparent 70%)',
+                    opacity: hoveredRoom === key ? 1 : 0,
+                    transition: 'opacity 0.3s ease',
+                    pointerEvents: 'none',
+                  }} />
 
-      {/* SOCIAL PROOF */}
-      <section style={styles.section}>
-        <span style={styles.sectionLabel}>What People Say</span>
-        <h2 style={styles.sectionTitle}>Real Prep. Real Offers.</h2>
-        <div style={styles.reviewsGrid}>
-          {REVIEWS.map((r) => (
-            <div key={r.name} style={styles.reviewCard}>
-              <span style={styles.reviewStars}>{'★'.repeat(r.stars)}</span>
-              <p style={styles.reviewText}>{r.text}</p>
-              <div style={styles.reviewAuthor}>
-                <div style={styles.reviewAvatar}>{r.name[0]}</div>
-                <div>
-                  <div style={styles.reviewName}>{r.name}</div>
-                  <div style={styles.reviewMeta}>{r.role} · {r.flag} {r.region}</div>
+                  <span style={{ fontSize: '36px', display: 'block', marginBottom: '14px' }}>{r.flag}</span>
+                  <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '18px', color: '#fff', marginBottom: '4px' }}>{r.name}</div>
+                  <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', marginBottom: '14px' }}>{r.interviewer}</div>
+
+                  <span style={{ display: 'inline-block', background: 'rgba(0,210,255,0.08)', border: '1px solid rgba(0,210,255,0.2)', borderRadius: '20px', padding: '3px 12px', fontSize: '10px', fontWeight: 600, color: '#00d2ff', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: 'auto' }}>
+                    {r.styleTag}
+                  </span>
+
+                  {cityTimes[key] && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '14px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                      <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#00ffcc', display: 'block', animation: 'pulse-dot 2s infinite', flexShrink: 0 }} />
+                      <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', fontFamily: "'Space Grotesk', sans-serif" }}>
+                        {cityTimes[key]} local
+                      </span>
+                    </div>
+                  )}
+
+                  {hoveredRoom === key && (
+                    <div style={{ marginTop: '12px', fontSize: '12px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.55, fontStyle: 'italic', paddingTop: '10px', borderTop: '1px solid rgba(0,210,255,0.08)' }}>
+                      {r.personality.split('.')[0]}.
+                    </div>
+                  )}
                 </div>
-              </div>
+              ))}
             </div>
-          ))}
-        </div>
-      </section>
+          </div>
+        </section>
 
-      {/* FINAL CTA */}
-      <section style={styles.ctaSection}>
-        <div style={styles.ctaGlow} />
-        <p style={styles.ctaSub}>In a world where everyone is interview ready,</p>
-        <h2 style={styles.ctaTitle}>
-          the candidates who stand out will be the ones<br />
-          who are <span style={styles.ctaTitleHighlight}>World-Ready.</span>
-        </h2>
-        <button className="wr-btn-primary" style={{ ...styles.btnPrimary, fontSize: '16px', padding: '16px 36px', position: 'relative', zIndex: 1 }} onClick={handleBegin}>
-          Begin Your Interview →
-        </button>
-      </section>
+        {/* ── DIVIDER ── */}
+        <div style={{ height: '1px', margin: '0 56px', background: 'linear-gradient(90deg, transparent, rgba(0,210,255,0.15), transparent)' }} />
 
-      {/* FOOTER */}
-      <footer style={styles.footer}>
-        <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, color: 'rgba(0,210,255,0.4)', fontSize: '14px' }}>
-          🌐 World Ready
-        </div>
-        <div>HornetHacks 2026 · Built with Claude AI + Google Maps</div>
-        <div style={{ display: 'flex', gap: '24px' }}>
-          <button style={{ ...styles.navLink, fontSize: '13px' }} onClick={() => navigate('/about')}>About</button>
-          <button style={{ ...styles.navLink, fontSize: '13px' }} onClick={() => navigate('/login')}>Sign In</button>
-        </div>
-      </footer>
+        {/* ── HOW IT WORKS ── */}
+        <section style={{ padding: '120px 56px' }}>
+          <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+            <div style={{ textAlign: 'center', marginBottom: '72px' }}>
+              <span style={{ display: 'block', fontSize: '11px', letterSpacing: '4px', color: '#00d2ff', textTransform: 'uppercase', fontWeight: 600, fontFamily: "'Syne', sans-serif", marginBottom: '16px' }}>
+                The Process
+              </span>
+              <h2 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: '44px', color: '#fff', margin: 0, lineHeight: 1.1 }}>
+                How It Works
+              </h2>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px', position: 'relative' }}>
+              {/* Connecting line */}
+              <div style={{ position: 'absolute', top: '44px', left: '33%', right: '33%', height: '1px', background: 'linear-gradient(90deg, rgba(0,210,255,0.3), rgba(196,114,240,0.3))', zIndex: 0 }} />
+
+              {STEPS.map((step) => (
+                <div key={step.num} className="wr-step-card" style={{ background: 'rgba(5,21,37,0.85)', border: '1px solid rgba(0,210,255,0.12)', borderRadius: '16px', padding: '36px 28px', textAlign: 'center', backdropFilter: 'blur(20px)', position: 'relative', zIndex: 1 }}>
+                  <span style={{ position: 'absolute', top: '18px', right: '20px', fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: '11px', color: 'rgba(0,210,255,0.25)', letterSpacing: '1px' }}>{step.num}</span>
+                  <div style={{ width: '56px', height: '56px', borderRadius: '14px', background: 'rgba(0,210,255,0.08)', border: '1px solid rgba(0,210,255,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: '24px' }}>
+                    {step.icon}
+                  </div>
+                  <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '16px', color: '#fff', marginBottom: '12px' }}>{step.title}</div>
+                  <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.45)', lineHeight: 1.65, margin: 0 }}>{step.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── DIVIDER ── */}
+        <div style={{ height: '1px', margin: '0 56px', background: 'linear-gradient(90deg, transparent, rgba(196,114,240,0.2), transparent)' }} />
+
+        {/* ── SOCIAL PROOF ── */}
+        <section style={{ padding: '120px 56px' }}>
+          <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
+            <div style={{ textAlign: 'center', marginBottom: '72px' }}>
+              <span style={{ display: 'block', fontSize: '11px', letterSpacing: '4px', color: '#c472f0', textTransform: 'uppercase', fontWeight: 600, fontFamily: "'Syne', sans-serif", marginBottom: '16px' }}>
+                What People Say
+              </span>
+              <h2 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: '44px', color: '#fff', margin: 0, lineHeight: 1.1 }}>
+                Real Prep. Real Offers.
+              </h2>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px' }}>
+              {REVIEWS.map((r, i) => (
+                <div key={r.name} className="wr-review-card" style={{ background: 'rgba(5,21,37,0.85)', border: '1px solid rgba(196,114,240,0.15)', borderRadius: '16px', padding: '36px 32px', backdropFilter: 'blur(20px)', display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ color: '#f59e0b', fontSize: '15px', letterSpacing: '3px', marginBottom: '24px', display: 'block' }}>★★★★★</span>
+                  <p style={{ fontSize: '16px', color: 'rgba(255,255,255,0.8)', lineHeight: 1.7, marginBottom: '28px', fontStyle: 'italic', flex: 1 }}>
+                    {r.text}
+                  </p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'linear-gradient(135deg, rgba(0,210,255,0.15), rgba(196,114,240,0.15))', border: '1px solid rgba(196,114,240,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 700, color: '#c472f0', fontFamily: "'Syne', sans-serif", flexShrink: 0 }}>
+                      {r.name[0]}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: '#fff' }}>{r.name}</div>
+                      <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)' }}>{r.role} · {r.flag} {r.region}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── FINAL CTA ── */}
+        <section style={{ padding: '160px 56px', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
+          {/* Background glow */}
+          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '800px', height: '400px', background: 'radial-gradient(ellipse, rgba(0,210,255,0.07) 0%, transparent 70%)', pointerEvents: 'none' }} />
+          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '600px', height: '300px', background: 'radial-gradient(ellipse, rgba(196,114,240,0.04) 0%, transparent 70%)', pointerEvents: 'none' }} />
+
+          {/* Top divider line */}
+          <div style={{ position: 'absolute', top: 0, left: '15%', right: '15%', height: '1px', background: 'linear-gradient(90deg, transparent, rgba(0,210,255,0.25), rgba(196,114,240,0.2), transparent)' }} />
+
+          <div style={{ position: 'relative', zIndex: 1, maxWidth: '760px', margin: '0 auto' }}>
+            <p style={{ fontSize: '17px', color: 'rgba(255,255,255,0.45)', marginBottom: '20px', letterSpacing: '0.2px' }}>
+              In a world where everyone is interview ready,
+            </p>
+            <h2 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: '48px', color: '#fff', lineHeight: 1.1, marginBottom: '48px' }}>
+              the candidates who stand out will be<br />
+              the ones who are{' '}
+              <span style={{ background: 'linear-gradient(90deg, #00d2ff, #c472f0)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+                World-Ready.
+              </span>
+            </h2>
+            <button className="wr-btn-primary" onClick={handleBegin} style={{ background: 'linear-gradient(135deg, #00d2ff, #0099cc)', border: 'none', borderRadius: '14px', color: '#020d1a', padding: '18px 40px', fontSize: '17px', fontWeight: 700, cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif", letterSpacing: '0.3px', boxShadow: '0 0 50px rgba(0,210,255,0.3)', transition: 'all 0.2s' }}>
+              Begin Your Interview →
+            </button>
+          </div>
+        </section>
+
+        {/* ── FOOTER ── */}
+        <footer style={{ padding: '32px 56px', borderTop: '1px solid rgba(0,210,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, color: 'rgba(0,210,255,0.4)', fontSize: '15px' }}>🌐 World Ready</div>
+          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.2)', letterSpacing: '0.5px' }}>HornetHacks 2026 · Built with Claude AI + Google Maps</div>
+          <div style={{ display: 'flex', gap: '28px' }}>
+            {[['About', () => navigate('/about')], ['Sign In', () => navigate('/login')]].map(([label, fn]) => (
+              <button key={label} className="wr-nav-link" onClick={fn} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', fontSize: '13px', cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif", padding: 0, transition: 'color 0.2s' }}>{label}</button>
+            ))}
+          </div>
+        </footer>
+      </div>
     </div>
   );
 }

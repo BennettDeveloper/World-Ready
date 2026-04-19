@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { login } from '../utils/auth';
+import { login, loginDemo } from '../utils/auth';
 
 export default function LoginPage({ onLogin }) {
   const [form, setForm] = useState({ username: '', password: '' });
@@ -92,6 +92,27 @@ export default function LoginPage({ onLogin }) {
             Don&apos;t have an account?{' '}
             <Link to="/register" className="auth-link">Create one</Link>
           </p>
+
+          <div style={{ marginTop: '8px', borderTop: '1px solid rgba(255,255,255,0.07)', paddingTop: '20px' }}>
+            <button
+              type="button"
+              onClick={() => { const r = loginDemo(); if (r.success) { onLogin(r.user); navigate('/home'); } }}
+              style={{
+                width: '100%', padding: '12px', borderRadius: '10px',
+                background: 'rgba(196,114,240,0.1)', border: '1px solid rgba(196,114,240,0.3)',
+                color: '#c472f0', fontSize: '14px', fontWeight: 600,
+                cursor: 'pointer', fontFamily: 'var(--font-ui)',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(196,114,240,0.18)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'rgba(196,114,240,0.1)'}
+            >
+              ⚡ Enter Demo Mode
+            </button>
+            <p style={{ textAlign: 'center', fontSize: '11px', color: 'rgba(255,255,255,0.25)', margin: '10px 0 0', letterSpacing: '0.3px' }}>
+              No account needed · Pre-loaded with sessions
+            </p>
+          </div>
         </form>
       </div>
     </div>

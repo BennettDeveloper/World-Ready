@@ -34,7 +34,7 @@ public class InterviewController {
 
     @PostMapping("/start-interview")
     public StartInterviewResponse startInterview(@RequestBody StartInterviewRequest request) {
-        return interviewService.startInterview(request.getRegion(), request.getRole());
+        return interviewService.startInterview(request.getRegion(), request.getRole(), request.getTimeContext());
     }
 
     @PostMapping("/next-question")
@@ -43,7 +43,8 @@ public class InterviewController {
                 request.getRegion(),
                 request.getRole(),
                 request.getConversationHistory(),
-                request.getQuestionNumber()
+                request.getQuestionNumber(),
+                request.getTimeContext()
         );
     }
 
@@ -53,7 +54,8 @@ public class InterviewController {
                 request.getRegion(),
                 request.getRole(),
                 request.getConversationHistory(),
-                request.getResumeText()
+                request.getResumeText(),
+                request.getTimeContext()
         );
     }
 
