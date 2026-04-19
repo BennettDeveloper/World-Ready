@@ -4,7 +4,7 @@ const WorldMap = lazy(() => import('../components/WorldMap'));
 import DifficultySelector from '../components/DifficultySelector';
 import LeaderboardPreview from '../components/LeaderboardPreview';
 import { REGIONS } from '../data/regions';
-import { setPendingSession } from '../utils/storage';
+import { setPendingSession, getResume } from '../utils/storage';
 import { isValidJobTitle } from '../utils/validation';
 
 export default function LandingPage({ user }) {
@@ -25,7 +25,8 @@ export default function LandingPage({ user }) {
 
   function handleBegin() {
     if (!canBegin) return;
-    setPendingSession({ region: selectedRegion, role: role.trim(), company: company.trim(), difficulty });
+    const resumeText = user?.userId ? getResume(user.userId) : '';
+    setPendingSession({ region: selectedRegion, role: role.trim(), company: company.trim(), difficulty, resumeText });
     navigate('/interview');
   }
 

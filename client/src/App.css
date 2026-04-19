@@ -687,6 +687,73 @@
 }
 
 /* ─────────────────────────────────────────
+   RESUME TEXTAREA
+───────────────────────────────────────── */
+.resume-textarea {
+  resize: vertical;
+  min-height: 110px;
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+
+/* ─────────────────────────────────────────
+   FORGOT PASSWORD
+───────────────────────────────────────── */
+.form-help-text { font-size: 0.82rem; color: var(--text-2); margin-bottom: 14px; line-height: 1.5; }
+.reset-success { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.reset-success-icon { font-size: 2.8rem; }
+
+/* ─────────────────────────────────────────
+   ABOUT PAGE
+───────────────────────────────────────── */
+.about-page { max-width: 900px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; gap: 36px; padding-bottom: 80px; }
+
+.about-hero {
+  position: relative; text-align: center;
+  padding: 56px 24px 40px;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, rgba(0,212,255,0.05) 0%, rgba(124,58,237,0.05) 100%);
+  border: 1px solid var(--panel-border);
+}
+.about-hero-bg-orbs { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.about-hero-globe { font-size: 3.5rem; display: block; margin-bottom: 16px; }
+.about-hero-title { font-size: 2.4rem; font-weight: 800; margin: 0 0 12px; color: var(--text); }
+.about-hero-tagline { font-size: 1rem; color: var(--text-2); margin: 0; }
+
+.about-mission { padding: 32px 36px; display: flex; flex-direction: column; gap: 14px; }
+.about-section-title { font-size: 1.2rem; font-weight: 700; color: var(--text); margin: 0 0 4px; }
+.about-section-title.centered { text-align: center; }
+.about-mission-text { font-size: 0.92rem; line-height: 1.78; color: var(--text-2); margin: 0; }
+.about-mission-highlight { color: var(--text); font-size: 0.95rem; }
+.about-mission-highlight em { color: var(--cyan); font-style: normal; font-weight: 600; }
+
+.about-pillars { display: flex; flex-direction: column; gap: 16px; }
+.about-pillars-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.about-pillar { padding: 24px; display: flex; flex-direction: column; gap: 8px; }
+.pillar-icon { font-size: 1.8rem; }
+.pillar-title { font-size: 0.95rem; font-weight: 700; color: var(--text); margin: 0; }
+.pillar-desc { font-size: 0.83rem; color: var(--text-2); line-height: 1.65; margin: 0; }
+
+.about-team { padding: 32px 36px; }
+.about-team-grid { display: flex; flex-direction: column; gap: 14px; margin-top: 20px; }
+.team-card { display: flex; align-items: center; gap: 16px; padding: 14px 18px; border-radius: var(--radius-sm); background: rgba(255,255,255,0.03); border: 1px solid var(--panel-border); }
+.team-avatar { width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, var(--cyan), var(--purple)); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; font-weight: 700; color: #0d1117; flex-shrink: 0; }
+.team-name { font-size: 0.9rem; font-weight: 600; color: var(--text); }
+.team-role { font-size: 0.78rem; color: var(--cyan); margin-top: 2px; }
+
+.about-cta { text-align: center; padding: 48px 24px; border-radius: var(--radius); background: linear-gradient(135deg, rgba(0,212,255,0.06), rgba(124,58,237,0.06)); border: 1px solid var(--panel-border); display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.about-cta-title { font-size: 1.6rem; font-weight: 800; color: var(--text); margin: 0; }
+.about-cta-sub { font-size: 0.88rem; color: var(--text-2); margin: 0; max-width: 480px; line-height: 1.65; }
+
+@media (max-width: 640px) {
+  .about-pillars-grid { grid-template-columns: 1fr; }
+  .about-hero-title { font-size: 1.7rem; }
+  .about-mission { padding: 20px; }
+  .about-team { padding: 20px; }
+}
+
+/* ─────────────────────────────────────────
    REVIEWS PAGE
 ───────────────────────────────────────── */
 .reviews-page { max-width: 1100px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; gap: 28px; padding-bottom: 60px; }

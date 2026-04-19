@@ -9,6 +9,8 @@ import ResultsScreen from './pages/ResultsScreen';
 import ProfilePage from './pages/ProfilePage';
 import LeaderboardPage from './pages/LeaderboardPage';
 import ReviewsPage from './pages/ReviewsPage';
+import AboutPage from './pages/AboutPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import { getSession } from './utils/auth';
 import './App.css';
 
@@ -76,6 +78,8 @@ export default function App() {
               <ReviewsPage user={user} />
             </ProtectedRoute>
           } />
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="*" element={<Navigate to={user ? '/home' : '/'} replace />} />
         </Routes>
       </main>

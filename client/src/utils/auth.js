@@ -54,3 +54,15 @@ export function getSession() {
 export function isLoggedIn() {
   return !!getSession();
 }
+
+export function resetPassword(username, email, newPassword) {
+  const users = getUsers();
+  const idx = users.findIndex(
+    u => u.username.toLowerCase() === username.toLowerCase() &&
+         u.email.toLowerCase() === email.toLowerCase()
+  );
+  if (idx === -1) return { success: false, error: 'No account found with that username and email.' };
+  users[idx].password = newPassword;
+  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+  return { success: true };
+}

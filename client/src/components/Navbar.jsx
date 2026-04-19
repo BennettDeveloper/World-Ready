@@ -21,6 +21,7 @@ export default function Navbar({ user, onLogout }) {
     { to: '/profile', label: 'Profile' },
     { to: '/leaderboard', label: 'Leaderboard' },
     { to: '/reviews', label: 'Reviews' },
+    { to: '/about', label: 'About' },
   ];
 
   return (

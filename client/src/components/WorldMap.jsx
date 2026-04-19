@@ -48,6 +48,7 @@ export default function WorldMap({ selectedRegion, onSelectRegion }) {
 
   // Stable factory — never changes, so globe never duplicates elements
   const makeHtmlEl = useCallback((d) => {
+    if (elMapRef.current[d.key]) return elMapRef.current[d.key];
     const el = document.createElement('div');
     el.className = 'globe-pin';
     el.innerHTML = `
