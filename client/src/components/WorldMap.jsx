@@ -8,6 +8,8 @@ const POINTS = Object.entries(REGIONS).map(([key, r]) => ({
   lng: r.lon,
   flag: r.flag,
   name: r.name,
+  interviewer: r.interviewer,
+  styleTag: r.styleTag,
 }));
 
 export default function WorldMap({ selectedRegion, onSelectRegion }) {
@@ -46,10 +48,16 @@ export default function WorldMap({ selectedRegion, onSelectRegion }) {
 
   // Stable factory — never changes, so globe never duplicates elements
   const makeHtmlEl = useCallback((d) => {
+    if (elMapRef.current[d.key]) return elMapRef.current[d.key];
     const el = document.createElement('div');
     el.className = 'globe-pin';
-    el.innerHTML = `<span class="globe-pin-flag">${d.flag}</span>`;
-    el.title = d.name;
+    el.innerHTML = `
+      <span class="globe-pin-flag">${d.flag}</span>
+      <div class="globe-tooltip">
+        <span class="gt-name">${d.name}</span>
+        <span class="gt-interviewer">${d.interviewer}</span>
+        <span class="gt-style">${d.styleTag}</span>
+      </div>`;
     el.addEventListener('click', () => onSelectRef.current?.(d.key));
     elMapRef.current[d.key] = el;
     return el;

@@ -1,70 +1,134 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { register } from '../utils/auth'
+import { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { register } from '../utils/auth';
+import { setResume } from '../utils/storage';
 
 export default function RegisterPage({ onLogin }) {
-  const [form, setForm] = useState({ name: '', email: '', username: '', password: '', confirm: '' })
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [form, setForm] = useState({ name: '', email: '', username: '', password: '', confirm: '', resume: '' });
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
-  function update(field) { return e => setForm(f => ({ ...f, [field]: e.target.value })) }
-
-  async function handleSubmit(e) {
-    e.preventDefault()
-    setError('')
-    if (form.password !== form.confirm) { setError('Passwords do not match.'); return }
-    if (form.password.length < 6) { setError('Password must be at least 6 characters.'); return }
-    if (form.username.length < 3) { setError('Username must be at least 3 characters.'); return }
-    setLoading(true)
-    await new Promise(r => setTimeout(r, 400))
-    const result = register({ username: form.username, password: form.password, name: form.name, email: form.email })
-    if (result.success) { onLogin(result.user) } else { setError(result.error) }
-    setLoading(false)
+  function handleChange(e) {
+    setForm(f => ({ ...f, [e.target.name]: e.target.value }));
+    setError('');
   }
 
-  const field = (label, key, type = 'text', placeholder = '') => (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-      <label style={{ fontSize: '11px', color: 'var(--text-muted)', letterSpacing: '2px', textTransform: 'uppercase', fontFamily: 'var(--font-display)' }}>{label}</label>
-      <input type={type} value={form[key]} onChange={update(key)} placeholder={placeholder} required
-        style={{ background: 'rgba(0,210,255,0.04)', border: '1px solid var(--cyan-border)', borderRadius: 'var(--radius-md)', padding: '12px 16px', color: 'var(--text-primary)', fontSize: '14px' }}
-      />
-    </div>
-  )
+  function handleSubmit(e) {
+    e.preventDefault();
+    const { name, email, username, password, confirm } = form;
+    if (!name.trim() || !email.trim() || !username.trim() || !password || !confirm) {
+      setError('All fields are required.');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+    if (username.length < 3) {
+      setError('Username must be at least 3 characters.');
+      return;
+    }
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters.');
+      return;
+    }
+    if (password !== confirm) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    setLoading(true);
+    setTimeout(() => {
+      const result = register({ name: name.trim(), email: email.trim(), username: username.trim(), password });
+      if (result.success) {
+        if (form.resume.trim()) setResume(result.user.userId, form.resume.trim());
+        onLogin(result.user);
+        navigate('/home');
+      } else {
+        setError(result.error);
+        setLoading(false);
+      }
+    }, 400);
+  }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
-      <div style={{ position: 'fixed', top: '-10%', left: '-5%', width: '500px', height: '500px', borderRadius: '50%', background: 'rgba(0,210,255,0.06)', filter: 'blur(80px)', pointerEvents: 'none' }} />
-      <div style={{ position: 'fixed', bottom: '-10%', right: '-5%', width: '500px', height: '500px', borderRadius: '50%', background: 'rgba(196,114,240,0.06)', filter: 'blur(80px)', pointerEvents: 'none' }} />
+    <div className="auth-page">
+      <div className="auth-bg-orbs">
+        <div className="orb orb-1" />
+        <div className="orb orb-2" />
+        <div className="orb orb-3" />
+      </div>
 
-      <div className="glass-panel" style={{ width: '100%', maxWidth: '520px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-        <div style={{ textAlign: 'center' }}>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.5rem', marginBottom: '4px' }} className="gradient-text">Create your account</h1>
-          <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Join World Ready and start practicing</p>
+      <div className="auth-card glass register-card">
+        <div className="auth-logo">
+          <span className="auth-globe">🌐</span>
+          <h1 className="auth-brand">World Ready</h1>
+          <p className="auth-tagline">Join the global community</p>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-            {field('Full Name', 'name', 'text', 'Your full name')}
-            {field('Email', 'email', 'email', 'your@email.com')}
-          </div>
-          {field('Username', 'username', 'text', 'Choose a username')}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-            {field('Password', 'password', 'password', 'Min 6 characters')}
-            {field('Confirm Password', 'confirm', 'password', 'Repeat password')}
+        <form className="auth-form" onSubmit={handleSubmit} noValidate>
+          <h2 className="auth-title">Create your account</h2>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label" htmlFor="name">Full Name</label>
+              <input id="name" name="name" type="text" className="form-input" placeholder="Your full name"
+                value={form.name} onChange={handleChange} autoFocus />
+            </div>
+            <div className="form-group">
+              <label className="form-label" htmlFor="email">Email</label>
+              <input id="email" name="email" type="email" className="form-input" placeholder="you@example.com"
+                value={form.email} onChange={handleChange} />
+            </div>
           </div>
 
-          {error && <div style={{ background: 'rgba(255,71,87,0.1)', border: '1px solid rgba(255,71,87,0.3)', borderRadius: 'var(--radius-sm)', padding: '10px 14px', fontSize: '13px', color: 'var(--score-low)' }}>{error}</div>}
+          <div className="form-group">
+            <label className="form-label" htmlFor="reg-username">Username</label>
+            <input id="reg-username" name="username" type="text" className="form-input" placeholder="Choose a username"
+              value={form.username} onChange={handleChange} autoComplete="username" />
+          </div>
 
-          <button type="submit" disabled={loading} className="btn-primary" style={{ width: '100%', padding: '14px', marginTop: '4px' }}>
-            {loading ? 'Creating account...' : 'Create Account'}
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label" htmlFor="reg-password">Password</label>
+              <input id="reg-password" name="password" type="password" className="form-input" placeholder="Min 6 characters"
+                value={form.password} onChange={handleChange} autoComplete="new-password" />
+            </div>
+            <div className="form-group">
+              <label className="form-label" htmlFor="confirm">Confirm Password</label>
+              <input id="confirm" name="confirm" type="password" className="form-input" placeholder="Repeat password"
+                value={form.confirm} onChange={handleChange} autoComplete="new-password" />
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label" htmlFor="resume">
+              Resume <span className="optional">(optional — paste your resume text for personalized interview questions)</span>
+            </label>
+            <textarea
+              id="resume"
+              name="resume"
+              className="form-input resume-textarea"
+              placeholder="Paste your resume here — work experience, skills, education…"
+              value={form.resume}
+              onChange={handleChange}
+              rows={5}
+            />
+          </div>
+
+          {error && <div className="form-error">{error}</div>}
+
+          <button type="submit" className="btn-primary full-width" disabled={loading}>
+            {loading ? <span className="spinner" /> : 'Create Account'}
           </button>
-        </form>
 
-        <p style={{ textAlign: 'center', fontSize: '13px', color: 'var(--text-muted)' }}>
-          Already have an account?{' '}
-          <Link to="/" style={{ color: 'var(--cyan)', textDecoration: 'none', fontWeight: 500 }}>Sign in</Link>
-        </p>
+          <p className="auth-switch">
+            Already have an account?{' '}
+            <Link to="/" className="auth-link">Sign in</Link>
+          </p>
+        </form>
       </div>
     </div>
-  )
+  );
 }

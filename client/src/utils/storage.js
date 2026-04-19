@@ -39,3 +39,11 @@ export function getPendingSession() {
 export function clearPendingSession() {
   localStorage.removeItem(PENDING_KEY);
 }
+
+export function setResume(userId, text) {
+  localStorage.setItem(`wr_resume_${userId}`, text);
+}
+
+export function getResume(userId) {
+  return localStorage.getItem(`wr_resume_${userId}`) || '';
+}
