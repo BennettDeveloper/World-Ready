@@ -10,7 +10,13 @@ export default function InterviewScreen({ onComplete }) {
   const navigate = useNavigate();
   const config = getPendingSession();
 
-  const [messages, setMessages] = useState([]);
+  const regionData = config ? REGIONS[config.region] : null;
+  const questions = regionData?.questions || [];
+  const timerSeconds = DIFFICULTY_SECONDS[config?.difficulty] || 120;
+
+  const [messages, setMessages] = useState(() =>
+    regionData ? [{ from: 'interviewer', text: regionData.greeting, isGreeting: true }] : []
+  );
   const [draft, setDraft] = useState('');
   const [qIndex, setQIndex] = useState(0);
   const [answerCount, setAnswerCount] = useState(0);
@@ -21,19 +27,14 @@ export default function InterviewScreen({ onComplete }) {
   const [repeatCounts, setRepeatCounts] = useState({});
   const chatRef = useRef(null);
 
-  const regionData = config ? REGIONS[config.region] : null;
-  const questions = regionData?.questions || [];
-  const timerSeconds = DIFFICULTY_SECONDS[config?.difficulty] || 120;
-
   useEffect(() => {
     if (!config || !regionData) { navigate('/home'); return; }
-    const greeting = { from: 'interviewer', text: regionData.greeting, isGreeting: true };
-    setMessages([greeting]);
     const t = setTimeout(() => {
       setMessages(prev => [...prev, { from: 'interviewer', text: questions[0] }]);
       setTimerRunning(true);
     }, 800);
     return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -54,7 +55,7 @@ export default function InterviewScreen({ onComplete }) {
 
       if (currentRepeats < 2) {
         // In-character gibberish response + repeat question
-        const gibReply = regionData.gibberishResponse || "I\'m sorry, I didn\'t quite follow that. Let me ask again.";
+        const gibReply = regionData.gibberishResponse || "I'm sorry, I didn't quite follow that. Let me ask again.";
         setRepeatCounts(prev => ({ ...prev, [qIndex]: currentRepeats + 1 }));
 
         setTimeout(() => {

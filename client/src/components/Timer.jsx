@@ -5,10 +5,6 @@ export default function Timer({ seconds, onExpire, running = true }) {
   const intervalRef = useRef(null);
 
   useEffect(() => {
-    setRemaining(seconds);
-  }, [seconds]);
-
-  useEffect(() => {
     if (!running) {
       clearInterval(intervalRef.current);
       return;

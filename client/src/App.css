@@ -605,6 +605,34 @@
 }
 
 /* ─────────────────────────────────────────
+   WORLD MAP (Google Maps)
+───────────────────────────────────────── */
+.world-map-stage { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
+.world-map-container {
+  width: 580px; height: 520px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--panel-border);
+  box-shadow: 0 0 60px rgba(0,212,255,0.08), 0 4px 40px rgba(0,0,0,0.5);
+}
+.world-map-hint { font-size: 0.75rem; color: var(--text-3); }
+.gm-style .gm-style-iw-c {
+  background: #111827 !important;
+  border: 1px solid rgba(0,212,255,0.3) !important;
+  border-radius: 12px !important;
+  padding: 0 !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.7) !important;
+}
+.gm-style .gm-style-iw-d { overflow: hidden !important; padding: 0 !important; }
+.gm-style .gm-style-iw-tc::after,
+.gm-style .gm-style-iw-t::after { background: #111827 !important; }
+.gm-style button.gm-ui-hover-effect { opacity: 0.6; filter: invert(1); top: 2px !important; right: 2px !important; }
+.gm-style button.gm-ui-hover-effect:hover { opacity: 1; }
+.gm-bundled-control .gmnoprint { filter: invert(1) hue-rotate(180deg) brightness(0.8); }
+@media (max-width: 1024px) { .world-map-container { width: 100%; max-width: 580px; height: 420px; } }
+@media (max-width: 768px) { .world-map-container { height: 340px; } }
+
+/* ─────────────────────────────────────────
    REVIEWS PAGE
 ───────────────────────────────────────── */
 .reviews-page { max-width: 1100px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; gap: 28px; padding-bottom: 60px; }

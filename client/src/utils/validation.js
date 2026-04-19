@@ -40,7 +40,7 @@ export function isValidJobTitle(text) {
   const t = text.trim();
   if (t.length < 2) return false;
   // Only letters, spaces, hyphens, slashes, periods, ampersands, numbers (for things like "Level 2 Analyst")
-  if (!/^[a-zA-Z0-9\s\-\/\.\&\+]+$/.test(t)) return false;
+  if (!/^[a-zA-Z0-9\s\-.&+/]+$/.test(t)) return false;
   // Must have at least one vowel (real words)
   if (!/[aeiouAEIOU]/.test(t)) return false;
   return true;

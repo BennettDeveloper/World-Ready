@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Globe from '../components/Globe';
+import WorldMap from '../components/WorldMap';
 import DifficultySelector from '../components/DifficultySelector';
 import LeaderboardPreview from '../components/LeaderboardPreview';
 import { REGIONS } from '../data/regions';
@@ -131,8 +131,7 @@ export default function LandingPage({ user }) {
 
         {/* Globe */}
         <div className="globe-stage">
-          <Globe size={580} selectedRegion={selectedRegion} onSelectRegion={handleSelectRegion} />
-          <p className="globe-hint">Click a pin to select your interview room</p>
+          <WorldMap selectedRegion={selectedRegion} onSelectRegion={handleSelectRegion} />
         </div>
 
         {/* Right panel */}

@@ -15,19 +15,21 @@ export default function ResultsScreen({ user, sessionData }) {
   const [submitted, setSubmitted] = useState(false);
   const [showTranscript, setShowTranscript] = useState(false);
 
-  if (!sessionData) { navigate('/home'); return null; }
-
-  const { region, role, company, difficulty, messages, answers } = sessionData;
+  const { region, role, company, difficulty, messages, answers } = sessionData || {};
   const regionData = REGIONS[region];
-  const scores = scoreAnswers(answers, region, role);
+  const scores = sessionData ? scoreAnswers(answers, region, role) : [65, 65, 65, 65, 65];
   const coaching = generateCoaching(scores);
   const overall = scores[4];
 
   useEffect(() => {
+    if (!sessionData) { navigate('/home'); return; }
     const t = setTimeout(() => setAnimated(true), 150);
     if (user) saveSession(user.userId, { region, role, company, difficulty, messages, scores, overall, answers });
     return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  if (!sessionData) return null;
 
   function handleSubmitLeaderboard() {
     if (submitted || !user) return;

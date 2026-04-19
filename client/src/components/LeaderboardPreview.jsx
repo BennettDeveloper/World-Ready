@@ -1,13 +1,8 @@
-import { useEffect, useState } from 'react';
-import { getLeaderboard } from '../utils/storage';
 import { REGIONS } from '../data/regions';
+import { getLeaderboard } from '../utils/storage';
 
 export default function LeaderboardPreview() {
-  const [entries, setEntries] = useState([]);
-
-  useEffect(() => {
-    setEntries(getLeaderboard().slice(0, 5));
-  }, []);
+  const entries = getLeaderboard().slice(0, 5);
 
   if (entries.length === 0) {
     return (
