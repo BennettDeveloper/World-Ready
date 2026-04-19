@@ -1,13 +1,18 @@
-package com.worldready.backend.dto;
+package com.worldready.backend.dto.request;
 
 import com.worldready.backend.model.InterviewMessage;
 import java.util.List;
+import java.util.Map;
 
-public class NextQuestionRequest {
+public class SessionSaveRequest {
+    private String sessionId;
     private String region;
     private String role;
     private List<InterviewMessage> conversationHistory;
-    private int questionNumber;
+    private Map<String, Integer> scores;
+
+    public String getSessionId() { return sessionId; }
+    public void setSessionId(String sessionId) { this.sessionId = sessionId; }
 
     public String getRegion() { return region; }
     public void setRegion(String region) { this.region = region; }
@@ -18,6 +23,6 @@ public class NextQuestionRequest {
     public List<InterviewMessage> getConversationHistory() { return conversationHistory; }
     public void setConversationHistory(List<InterviewMessage> conversationHistory) { this.conversationHistory = conversationHistory; }
 
-    public int getQuestionNumber() { return questionNumber; }
-    public void setQuestionNumber(int questionNumber) { this.questionNumber = questionNumber; }
+    public Map<String, Integer> getScores() { return scores; }
+    public void setScores(Map<String, Integer> scores) { this.scores = scores; }
 }

@@ -13,7 +13,7 @@ import org.springframework.web.client.RestTemplate;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.worldready.backend.dto.DIdResponse;
+import com.worldready.backend.dto.response.DIdResponse;
 
 @Service
 public class DIdService {

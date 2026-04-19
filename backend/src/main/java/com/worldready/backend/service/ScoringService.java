@@ -1,7 +1,7 @@
 package com.worldready.backend.service;
 
-import com.worldready.backend.dto.AnalyzeResponse;
-import com.worldready.backend.dto.FeedbackResponse;
+import com.worldready.backend.dto.response.AnalyzeResponse;
+import com.worldready.backend.dto.response.FeedbackResponse;
 import com.worldready.backend.model.InterviewMessage;
 import com.worldready.backend.model.Persona;
 import com.fasterxml.jackson.databind.JsonNode;

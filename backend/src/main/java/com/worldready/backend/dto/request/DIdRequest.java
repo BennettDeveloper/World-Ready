@@ -1,4 +1,4 @@
-package com.worldready.backend.dto;
+package com.worldready.backend.dto.request;
 
 public class DIdRequest {
     private String text;

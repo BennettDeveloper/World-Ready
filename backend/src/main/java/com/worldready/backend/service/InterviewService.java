@@ -1,8 +1,9 @@
 package com.worldready.backend.service;
 
-import com.worldready.backend.dto.NextQuestionResponse;
-import com.worldready.backend.dto.StartInterviewResponse;
+import com.worldready.backend.dto.response.NextQuestionResponse;
+import com.worldready.backend.dto.response.StartInterviewResponse;
 import com.worldready.backend.model.InterviewMessage;
+import com.worldready.backend.model.InterviewSession;
 import com.worldready.backend.model.Persona;
 import org.springframework.stereotype.Service;
 
@@ -14,14 +15,20 @@ public class InterviewService {
 
     private final PersonaService personaService;
     private final ClaudeService claudeService;
+    private final SessionService sessionService;
 
-    public InterviewService(PersonaService personaService, ClaudeService claudeService) {
+    public InterviewService(PersonaService personaService,
+                            ClaudeService claudeService,
+                            SessionService sessionService) {
         this.personaService = personaService;
         this.claudeService = claudeService;
+        this.sessionService = sessionService;
     }
 
     public StartInterviewResponse startInterview(String region, String role) {
         Persona persona = personaService.getPersona(region);
+
+        InterviewSession session = sessionService.createSession(region, role);
 
         String userPrompt = """
                 You are interviewing a candidate for a %s position.
@@ -31,7 +38,16 @@ public class InterviewService {
 
         String question = claudeService.sendPrompt(persona.getPrompt(), userPrompt);
 
-        return new StartInterviewResponse(question, persona.getName(), persona.getStyle());
+        session.getConversationHistory().add(new InterviewMessage("AI", question));
+        session.setQuestionNumber(1);
+        sessionService.saveSession(session);
+
+        return new StartInterviewResponse(
+                session.getSessionId(),
+                question,
+                persona.getName(),
+                persona.getStyle()
+        );
     }
 
     public NextQuestionResponse nextQuestion(String region, String role, List<InterviewMessage> history, int questionNumber) {

@@ -1,4 +1,4 @@
-package com.worldready.backend.dto;
+package com.worldready.backend.dto.response;
 
 public class DIdResponse {
     private boolean success;

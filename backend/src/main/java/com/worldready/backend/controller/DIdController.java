@@ -6,8 +6,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.worldready.backend.dto.DIdRequest;
-import com.worldready.backend.dto.DIdResponse;
+import com.worldready.backend.dto.request.DIdRequest;
+import com.worldready.backend.dto.response.DIdResponse;
 import com.worldready.backend.service.DIdService;
 
 @RestController
