@@ -12,6 +12,7 @@ import LeaderboardPage from './pages/LeaderboardPage';
 import ReviewsPage from './pages/ReviewsPage';
 import AboutPage from './pages/AboutPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import DidDemo from './DidDemo';
 import { getSession } from './utils/auth';
 import './App.css';
 
@@ -45,6 +46,11 @@ export default function App() {
           <Route path="/home" element={
             <ProtectedRoute user={user}>
               <LandingPage user={user} />
+            </ProtectedRoute>
+          } />
+          <Route path="/did-demo" element={
+            <ProtectedRoute user={user}>
+              <DidDemo />
             </ProtectedRoute>
           } />
           <Route path="/interview" element={

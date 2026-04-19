@@ -99,6 +99,31 @@
 .begin-btn.active:hover { transform: translateY(-1px); box-shadow: 0 6px 28px rgba(0,212,255,0.38); }
 .begin-btn.disabled { background: rgba(255,255,255,0.05); color: var(--text-3); cursor: not-allowed; }
 
+.did-demo-btn {
+  width: 100%;
+  padding: 12px 18px;
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+  font-weight: 600;
+  border: 1px solid var(--cyan-border);
+  background: rgba(0, 210, 255, 0.08);
+  color: var(--cyan);
+  cursor: pointer;
+  transition: all var(--t);
+  letter-spacing: 0.02em;
+  margin-top: 12px;
+}
+.did-demo-btn:hover {
+  background: rgba(0, 210, 255, 0.15);
+  border-color: var(--cyan);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(0,212,255,0.2);
+}
+
+.did-demo-section {
+  margin: 16px 0;
+}
+
 /* ── Forms ── */
 .form-group { display: flex; flex-direction: column; gap: 5px; }
 .form-label { font-size: 0.75rem; font-weight: 600; color: var(--text-3); letter-spacing: 0.06em; text-transform: uppercase; }

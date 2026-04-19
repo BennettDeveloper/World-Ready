@@ -140,6 +140,19 @@ export default function LandingPage({ user }) {
             </div>
           )}
 
+          {/* DID Demo Button */}
+          {showSetup && region && (
+            <div className="did-demo-section">
+              <button
+                className="did-demo-btn"
+                onClick={() => navigate('/did-demo')}
+                type="button"
+              >
+                🎥 Try AI Avatar Interview
+              </button>
+            </div>
+          )}
+
           <LeaderboardPreview />
         </aside>
 
