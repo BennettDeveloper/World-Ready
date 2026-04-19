@@ -77,6 +77,32 @@ export default function DidDemo() {
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [transcriptLog])
 
+  // ── Turn-taking: mute mic while interviewer is speaking ───────────────────
+  // isAgentTurn = true while Claude is thinking (isResponding) OR the avatar
+  // is actively speaking (streamState === 'speaking').
+  // When the agent's turn ends, mic is resumed automatically if the user had
+  // it enabled — pauseRecognition() preserves micOn so this is safe.
+  const isAgentSpeaking = streamState === 'speaking'
+  const isAgentTurn     = isAgentSpeaking || isResponding
+
+  useEffect(() => {
+    if (!sessionActive) return
+
+    if (isAgentTurn) {
+      if (isRecognitionActiveRef.current) {
+        console.log('[turn] agent turn — pausing mic (speaking:', isAgentSpeaking, ')')
+        pauseRecognition()
+      }
+      if (isAgentSpeaking) setStatus('Interviewer speaking…')
+    } else {
+      // User's turn: resume only if they haven't explicitly disabled mic
+      if (micOn && !speechBlocked && !isRecognitionActiveRef.current) {
+        console.log('[turn] user turn — resuming mic')
+        startMicRecognition()
+      }
+    }
+  }, [isAgentTurn, isAgentSpeaking, sessionActive, micOn, speechBlocked]) // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     return () => {
       sessionActiveRef.current = false
@@ -188,12 +214,18 @@ export default function DidDemo() {
     }
 
     console.log('[speech] calling rec.start()')
+    // Pre-set the active flag synchronously so re-entry guards work immediately.
+    // rec.onstart also sets it (idempotent); without pre-setting, effects that fire
+    // before onstart could see false and attempt a second start() call.
+    isRecognitionActiveRef.current = true
     rec.start()
     recognitionRef.current = rec
     setMicOn(true)
   }
 
-  function stopMicRecognition() {
+  // Shared engine teardown used by both stopMicRecognition and pauseRecognition.
+  // Nulls rec.onend before stopping so the auto-restart inside onend cannot fire.
+  function _haltRecognitionEngine() {
     clearTimeout(debounceTimerRef.current)
     pendingTextRef.current = ''
     latestInterimRef.current = ''
@@ -202,11 +234,23 @@ export default function DidDemo() {
     setInterimText('')
     if (recognitionRef.current) {
       const rec = recognitionRef.current
-      recognitionRef.current = null // null BEFORE stop so onend bails on restart check
+      recognitionRef.current = null
       rec.onend = null
       try { rec.stop() } catch (_) {}
     }
+  }
+
+  // User explicitly toggled mic off — clear user preference too.
+  function stopMicRecognition() {
+    _haltRecognitionEngine()
     setMicOn(false)
+  }
+
+  // Interviewer turn — temporarily halt recognition WITHOUT changing micOn so
+  // recognition resumes automatically when the interviewer finishes.
+  function pauseRecognition() {
+    _haltRecognitionEngine()
+    // micOn is intentionally NOT set to false here
   }
 
   // ── Transcript + API ──────────────────────────────────────────────────────
@@ -253,8 +297,14 @@ export default function DidDemo() {
       if (streamIsLive && replyText) {
         // Realtime path: send text to live streaming avatar
         const spoke = await streamSpeak(replyText)
-        if (!spoke) speakText(replyText) // stream failed mid-session, fall back to TTS
-        setStatus(sessionActiveRef.current ? 'listening' : 'idle')
+        if (!spoke) {
+          // Stream failed mid-session — fall back to TTS and restore status immediately
+          speakText(replyText)
+          setStatus(sessionActiveRef.current ? 'listening' : 'idle')
+        }
+        // If spoke successfully, don't set status here.
+        // The turn-taking effect sets 'Interviewer speaking…' while streamState === 'speaking'
+        // and restores 'listening' when the speak timer transitions back to 'live'.
       } else if (data.videoUrl) {
         // Generated D-ID video fallback
         setAvatarVideoUrl(data.videoUrl)
@@ -276,6 +326,8 @@ export default function DidDemo() {
     } finally {
       isRespondingRef.current = false
       setIsResponding(false)
+      // Status is managed per-branch in the try block and by the turn-taking effect
+      // for the stream path — do not set a blanket status here.
     }
   }
 
@@ -320,16 +372,21 @@ export default function DidDemo() {
         const streamNowLive = streamStateRef.current === 'live' || streamStateRef.current === 'speaking' || streamStateRef.current === 'connected'
         if (streamNowLive) {
           const spoke = await streamSpeak(replyText)
-          if (!spoke) speakText(replyText)
+          if (!spoke) {
+            speakText(replyText)
+            setStatus(sessionActiveRef.current ? 'listening' : 'idle')
+          }
+          // If spoke, turn-taking effect owns the status transition
         } else if (data.videoUrl) {
           setAvatarVideoUrl(data.videoUrl)
           setStatus('playing')
-          return
         } else {
           speakText(replyText)
+          setStatus(sessionActiveRef.current ? 'listening' : 'idle')
         }
+      } else {
+        setStatus(sessionActiveRef.current ? 'listening' : 'idle')
       }
-      setStatus(sessionActiveRef.current ? 'listening' : 'idle')
     } catch (e) {
       console.error('Opening greeting failed:', e)
       setStatus(sessionActiveRef.current ? 'listening' : 'idle')
@@ -855,6 +912,7 @@ function statusColor(s) {
   if (s === 'listening') return '#22c55e'
   if (s === 'finishing...') return '#86efac'
   if (s === 'thinking...' || s === 'sending') return '#f59e0b'
+  if (s === 'Interviewer speaking…') return '#818cf8'
   if (s === 'error' || s.includes('blocked')) return '#ef4444'
   if (s === 'playing') return '#3b82f6'
   return '#475569'
