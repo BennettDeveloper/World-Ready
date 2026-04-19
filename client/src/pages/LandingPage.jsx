@@ -5,6 +5,7 @@ import DifficultySelector from '../components/DifficultySelector';
 import LeaderboardPreview from '../components/LeaderboardPreview';
 import { REGIONS } from '../data/regions';
 import { setPendingSession } from '../utils/storage';
+import { isValidJobTitle } from '../utils/validation';
 
 export default function LandingPage({ user }) {
   const [selectedRegion, setSelectedRegion] = useState(null);
@@ -14,7 +15,7 @@ export default function LandingPage({ user }) {
   const [showSetup, setShowSetup] = useState(false);
   const navigate = useNavigate();
 
-  const canBegin = selectedRegion && role.trim().length > 0;
+  const canBegin = selectedRegion && isValidJobTitle(role);
   const region = selectedRegion ? REGIONS[selectedRegion] : null;
 
   function handleSelectRegion(key) {

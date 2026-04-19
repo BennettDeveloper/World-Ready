@@ -4,6 +4,7 @@ import Timer from '../components/Timer';
 import { REGIONS } from '../data/regions';
 import { getPendingSession, clearPendingSession } from '../utils/storage';
 import { DIFFICULTY_SECONDS } from '../components/DifficultySelector';
+import { isGibberish } from '../utils/validation';
 
 export default function InterviewScreen({ onComplete }) {
   const navigate = useNavigate();
@@ -11,12 +12,13 @@ export default function InterviewScreen({ onComplete }) {
 
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState('');
-  const [qIndex, setQIndex] = useState(0);       // which question we're on
-  const [answerCount, setAnswerCount] = useState(0); // how many answers submitted
+  const [qIndex, setQIndex] = useState(0);
+  const [answerCount, setAnswerCount] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
   const [answers, setAnswers] = useState([]);
   const [timerKey, setTimerKey] = useState(0);
-  const [timerRunning, setTimerRunning] = useState(false); // starts after greeting
+  const [timerRunning, setTimerRunning] = useState(false);
+  const [repeatCounts, setRepeatCounts] = useState({});
   const chatRef = useRef(null);
 
   const regionData = config ? REGIONS[config.region] : null;
@@ -25,7 +27,6 @@ export default function InterviewScreen({ onComplete }) {
 
   useEffect(() => {
     if (!config || !regionData) { navigate('/home'); return; }
-    // Seed conversation: greeting → then Q1 after a short delay
     const greeting = { from: 'interviewer', text: regionData.greeting, isGreeting: true };
     setMessages([greeting]);
     const t = setTimeout(() => {
@@ -43,33 +44,66 @@ export default function InterviewScreen({ onComplete }) {
     const answer = text.trim();
     if (!answer || isComplete) return;
 
-    const newAnswers = [...answers, answer];
-    setAnswers(newAnswers);
     setTimerRunning(false);
-
-    const nextQIndex = qIndex + 1;
-    const updated = [...messages, { from: 'user', text: answer }];
-    setMessages(updated);
+    setMessages(prev => [...prev, { from: 'user', text: answer }]);
     setDraft('');
-    setAnswerCount(c => c + 1);
 
-    // After short delay, show interviewer reaction
-    setTimeout(() => {
-      if (nextQIndex < questions.length) {
-        const transition = regionData.transitions?.[qIndex] || 'Thank you. Let us continue.';
-        setMessages(prev => [...prev, { from: 'interviewer', text: transition, isTransition: true }]);
+    // Gibberish check
+    if (isGibberish(answer)) {
+      const currentRepeats = repeatCounts[qIndex] || 0;
+
+      if (currentRepeats < 2) {
+        // In-character gibberish response + repeat question
+        const gibReply = regionData.gibberishResponse || "I\'m sorry, I didn\'t quite follow that. Let me ask again.";
+        setRepeatCounts(prev => ({ ...prev, [qIndex]: currentRepeats + 1 }));
 
         setTimeout(() => {
-          setMessages(prev => [...prev, { from: 'interviewer', text: questions[nextQIndex] }]);
-          setQIndex(nextQIndex);
-          setTimerKey(k => k + 1);
-          setTimerRunning(true);
-        }, 700);
+          setMessages(prev => [...prev, { from: 'interviewer', text: gibReply, isGibberish: true }]);
+          setTimeout(() => {
+            setMessages(prev => [...prev, { from: 'interviewer', text: questions[qIndex] }]);
+            setTimerKey(k => k + 1);
+            setTimerRunning(true);
+          }, 700);
+        }, 500);
+        return;
       } else {
-        setMessages(prev => [...prev, { from: 'interviewer', text: regionData.closing, isClosing: true }]);
-        setIsComplete(true);
+        // Max repeats reached — move on
+        const moveOn = regionData.moveOnResponse || "Let us continue to the next question.";
+        setTimeout(() => {
+          setMessages(prev => [...prev, { from: 'interviewer', text: moveOn, isTransition: true }]);
+          advanceQuestion(qIndex);
+        }, 500);
+        return;
       }
+    }
+
+    // Valid answer — record and advance
+    const newAnswers = [...answers, answer];
+    setAnswers(newAnswers);
+    setAnswerCount(c => c + 1);
+
+    setTimeout(() => {
+      advanceQuestion(qIndex);
     }, 500);
+  }
+
+  function advanceQuestion(currentQIndex) {
+    const nextQIndex = currentQIndex + 1;
+
+    if (nextQIndex < questions.length) {
+      const transition = regionData.transitions?.[currentQIndex] || 'Thank you. Let us continue.';
+      setMessages(prev => [...prev, { from: 'interviewer', text: transition, isTransition: true }]);
+
+      setTimeout(() => {
+        setMessages(prev => [...prev, { from: 'interviewer', text: questions[nextQIndex] }]);
+        setQIndex(nextQIndex);
+        setTimerKey(k => k + 1);
+        setTimerRunning(true);
+      }, 700);
+    } else {
+      setMessages(prev => [...prev, { from: 'interviewer', text: regionData.closing, isClosing: true }]);
+      setIsComplete(true);
+    }
   }
 
   function handleFinish() {
@@ -143,7 +177,7 @@ export default function InterviewScreen({ onComplete }) {
 
         <div className="chat-bubbles" ref={chatRef}>
           {messages.map((msg, i) => (
-            <div key={i} className={`bubble ${msg.from}${msg.isGreeting ? ' greeting' : ''}${msg.isTransition ? ' transition' : ''}${msg.isClosing ? ' closing' : ''}`}>
+            <div key={i} className={`bubble ${msg.from}${msg.isGreeting ? ' greeting' : ''}${msg.isTransition ? ' transition' : ''}${msg.isClosing ? ' closing' : ''}${msg.isGibberish ? ' gibberish-warning' : ''}`}>
               {msg.from === 'interviewer' && (
                 <span className="bubble-avatar">{regionData.flag}</span>
               )}

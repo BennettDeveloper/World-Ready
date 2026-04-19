@@ -8,6 +8,7 @@ import InterviewScreen from './pages/InterviewScreen';
 import ResultsScreen from './pages/ResultsScreen';
 import ProfilePage from './pages/ProfilePage';
 import LeaderboardPage from './pages/LeaderboardPage';
+import ReviewsPage from './pages/ReviewsPage';
 import { getSession } from './utils/auth';
 import './App.css';
 
@@ -68,6 +69,11 @@ export default function App() {
           <Route path="/leaderboard" element={
             <ProtectedRoute user={user}>
               <LeaderboardPage user={user} />
+            </ProtectedRoute>
+          } />
+          <Route path="/reviews" element={
+            <ProtectedRoute user={user}>
+              <ReviewsPage user={user} />
             </ProtectedRoute>
           } />
           <Route path="*" element={<Navigate to={user ? '/home' : '/'} replace />} />
